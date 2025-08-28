@@ -20,7 +20,7 @@ export async function GET() {
         id: item._id.toString(),
         name: item.name,
         description: item.description,
-        price: item.price,
+        price: parseFloat(item.price) || 0,
         image: item.image,
         allergens: item.allergens
       })

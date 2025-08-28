@@ -16,7 +16,11 @@ export async function GET() {
     const formattedItems = menuItems.map(item => ({
       ...item,
       id: item._id.toString(),
-      _id: undefined
+      _id: undefined,
+      price: parseFloat(item.price) || 0,
+      cookingTime: item.cookingTime ? parseInt(item.cookingTime) : null,
+      spicyLevel: item.spicyLevel ? parseInt(item.spicyLevel) : 0,
+      sortOrder: item.sortOrder ? parseInt(item.sortOrder) : 0
     }))
     
     return NextResponse.json({

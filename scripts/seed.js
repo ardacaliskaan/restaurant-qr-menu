@@ -2,6 +2,286 @@ const { MongoClient } = require('mongodb')
 
 const uri = 'mongodb://localhost:27017/restaurant-qr'
 
+const demoCategories = [
+  {
+    name: 'Pizzalar',
+    description: 'Taze malzemelerle hazırlanan özel pizzalarımız',
+    slug: 'pizzalar',
+    parentId: null,
+    image: null,
+    sortOrder: 1,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    name: 'Burgerlar',
+    description: 'Lezzetli burger çeşitlerimiz',
+    slug: 'burgerlar',
+    parentId: null,
+    image: null,
+    sortOrder: 2,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    name: 'Başlangıçlar',
+    description: 'Yemeğe başlamadan önce tadabileceğiniz lezzetler',
+    slug: 'baslangiclar',
+    parentId: null,
+    image: null,
+    sortOrder: 3,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    name: 'İçecekler',
+    description: 'Serinletici ve ısıtıcı içecek seçenekleri',
+    slug: 'icecekler',
+    parentId: null,
+    image: null,
+    sortOrder: 4,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    name: 'Tatlılar',
+    description: 'Yemeğinizi tatlı bir şekilde tamamlayın',
+    slug: 'tatlilar',
+    parentId: null,
+    image: null,
+    sortOrder: 5,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  }
+]
+
+const demoIngredients = [
+  // Et Ürünleri
+  {
+    name: 'Tavuk Göğsü',
+    description: 'Taze tavuk göğsü fileto',
+    category: 'meat',
+    allergens: [],
+    isVegetarian: false,
+    isVegan: false,
+    isGlutenFree: true,
+    extraPrice: 5.00,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    name: 'Beef Köfte',
+    description: 'Dana eti köftesi',
+    category: 'meat',
+    allergens: [],
+    isVegetarian: false,
+    isVegan: false,
+    isGlutenFree: true,
+    extraPrice: 8.00,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    name: 'Pepperoni',
+    description: 'İtalyan usulü pepperoni',
+    category: 'meat',
+    allergens: [],
+    isVegetarian: false,
+    isVegan: false,
+    isGlutenFree: true,
+    extraPrice: 6.00,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+
+  // Süt Ürünleri
+  {
+    name: 'Mozzarella Peyniri',
+    description: 'Taze mozzarella peyniri',
+    category: 'dairy',
+    allergens: ['dairy'],
+    isVegetarian: true,
+    isVegan: false,
+    isGlutenFree: true,
+    extraPrice: 4.00,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    name: 'Cheddar Peyniri',
+    description: 'Olgun cheddar peyniri',
+    category: 'dairy',
+    allergens: ['dairy'],
+    isVegetarian: true,
+    isVegan: false,
+    isGlutenFree: true,
+    extraPrice: 3.00,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+
+  // Sebzeler
+  {
+    name: 'Domates',
+    description: 'Taze domates dilimleri',
+    category: 'vegetable',
+    allergens: [],
+    isVegetarian: true,
+    isVegan: true,
+    isGlutenFree: true,
+    extraPrice: 1.50,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    name: 'Marul',
+    description: 'Çıtır marul yaprakları',
+    category: 'vegetable',
+    allergens: [],
+    isVegetarian: true,
+    isVegan: true,
+    isGlutenFree: true,
+    extraPrice: 1.00,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    name: 'Soğan',
+    description: 'Taze soğan halkaları',
+    category: 'vegetable',
+    allergens: [],
+    isVegetarian: true,
+    isVegan: true,
+    isGlutenFree: true,
+    extraPrice: 1.00,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    name: 'Mantar',
+    description: 'Taze champignon mantarı',
+    category: 'vegetable',
+    allergens: [],
+    isVegetarian: true,
+    isVegan: true,
+    isGlutenFree: true,
+    extraPrice: 2.50,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    name: 'Biber',
+    description: 'Renkli biber karışımı',
+    category: 'vegetable',
+    allergens: [],
+    isVegetarian: true,
+    isVegan: true,
+    isGlutenFree: true,
+    extraPrice: 2.00,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+
+  // Soslar
+  {
+    name: 'Domates Sosu',
+    description: 'Ev yapımı domates sosu',
+    category: 'sauce',
+    allergens: [],
+    isVegetarian: true,
+    isVegan: true,
+    isGlutenFree: true,
+    extraPrice: 0.50,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    name: 'Mayonez',
+    description: 'Kremalı mayonez',
+    category: 'sauce',
+    allergens: ['eggs'],
+    isVegetarian: true,
+    isVegan: false,
+    isGlutenFree: true,
+    extraPrice: 0.50,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    name: 'BBQ Sos',
+    description: 'Baharatli BBQ sosu',
+    category: 'sauce',
+    allergens: [],
+    isVegetarian: true,
+    isVegan: true,
+    isGlutenFree: true,
+    extraPrice: 1.00,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+
+  // Baharatlar
+  {
+    name: 'Fesleğen',
+    description: 'Taze fesleğen yaprakları',
+    category: 'spice',
+    allergens: [],
+    isVegetarian: true,
+    isVegan: true,
+    isGlutenFree: true,
+    extraPrice: 0.50,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  {
+    name: 'Oregano',
+    description: 'Kurutulmuş oregano',
+    category: 'spice',
+    allergens: [],
+    isVegetarian: true,
+    isVegan: true,
+    isGlutenFree: true,
+    extraPrice: 0.50,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+
+  // Diğer
+  {
+    name: 'Turşu',
+    description: 'Taze salatalık turşusu',
+    category: 'other',
+    allergens: [],
+    isVegetarian: true,
+    isVegan: true,
+    isGlutenFree: true,
+    extraPrice: 1.00,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  }
+]
+
 const demoMenuItems = [
   // Pizza Kategorisi
   {
@@ -241,12 +521,53 @@ async function seedDatabase() {
     const db = client.db('restaurant-qr')
     
     // Mevcut verileri temizle
+    await db.collection('categories').deleteMany({})
+    await db.collection('ingredients').deleteMany({})
     await db.collection('menu').deleteMany({})
     await db.collection('orders').deleteMany({})
     console.log('Mevcut veriler temizlendi')
     
+    // Kategorileri ekle
+    const categoryResult = await db.collection('categories').insertMany(demoCategories)
+    console.log(`${categoryResult.insertedCount} kategori eklendi`)
+    
+    // Malzemeleri ekle
+    const ingredientResult = await db.collection('ingredients').insertMany(demoIngredients)
+    console.log(`${ingredientResult.insertedCount} malzeme eklendi`)
+    
+    // Kategori ID'lerini al
+    const categories = await db.collection('categories').find({}).toArray()
+    const categoryMap = {}
+    categories.forEach(cat => {
+      categoryMap[cat.slug] = cat._id.toString()
+    })
+
+    // Malzeme ID'lerini al
+    const ingredients = await db.collection('ingredients').find({}).toArray()
+    const ingredientMap = {}
+    ingredients.forEach(ing => {
+      ingredientMap[ing.name] = ing._id.toString()
+    })
+
+    // Menü öğelerini güncelle (kategori ve malzeme ID'leri ile)
+    const updatedMenuItems = demoMenuItems.map(item => ({
+      ...item,
+      categoryId: categoryMap[item.category.toLowerCase().replace(/\s+/g, '-')] || categoryMap['pizzalar'],
+      // Örnek malzeme ataması
+      ingredients: item.category === 'Pizza' ? [
+        ingredientMap['Domates Sosu'],
+        ingredientMap['Mozzarella Peyniri'],
+        ingredientMap['Fesleğen']
+      ].filter(Boolean) : item.category === 'Burger' ? [
+        ingredientMap['Beef Köfte'],
+        ingredientMap['Marul'],
+        ingredientMap['Domates'],
+        ingredientMap['Soğan']
+      ].filter(Boolean) : []
+    }))
+    
     // Menü öğelerini ekle
-    const menuResult = await db.collection('menu').insertMany(demoMenuItems)
+    const menuResult = await db.collection('menu').insertMany(updatedMenuItems)
     console.log(`${menuResult.insertedCount} menü öğesi eklendi`)
     
     // Siparişleri ekle
