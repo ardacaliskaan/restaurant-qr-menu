@@ -1,15 +1,9 @@
 import { NextResponse } from 'next/server'
 import clientPromise from '@/lib/mongodb'
-import { requireAuth } from '@/lib/auth'
 
 // GET - Tüm masaları listele
 export async function GET() {
   try {
-    // Auth kontrolü
-    const authResult = requireAuth()
-    if (!authResult.isAuthenticated) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
 
     const client = await clientPromise
     const db = client.db('restaurant-qr')
@@ -28,11 +22,7 @@ export async function GET() {
 // POST - Yeni masa oluştur
 export async function POST(request) {
   try {
-    // Auth kontrolü
-    const authResult = requireAuth()
-    if (!authResult.isAuthenticated) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+
 
     const data = await request.json()
     const { number, capacity, location, status, notes } = data
@@ -75,11 +65,6 @@ export async function POST(request) {
 // PUT - Masa güncelle
 export async function PUT(request) {
   try {
-    // Auth kontrolü
-    const authResult = requireAuth()
-    if (!authResult.isAuthenticated) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
 
     const data = await request.json()
     const { _id, number, capacity, location, status, notes, qrCode } = data
@@ -135,11 +120,6 @@ export async function PUT(request) {
 // DELETE - Masa sil
 export async function DELETE(request) {
   try {
-    // Auth kontrolü
-    const authResult = requireAuth()
-    if (!authResult.isAuthenticated) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
 
     const { id } = await request.json()
     

@@ -1,48 +1,84 @@
 import { NextResponse } from 'next/server'
 import clientPromise from '@/lib/mongodb'
 
-// GET - Menü verilerini getir
+// Yardımcı: Kategori ismini slug'a çevir
+function toCategoryId(name) {
+  const base = String(name ?? 'Diğer').trim().toLowerCase()
+  // Boşlukları '-' yap, alfanümerik ve '-' dışını temizle
+  return base
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    || 'diger'
+}
+
+// Yardımcı: Sayıyı güvenle parse et
+function toNumber(val, fallback = 0) {
+  const n = typeof val === 'number' ? val : parseFloat(String(val).replace(',', '.'))
+  return Number.isFinite(n) ? n : fallback
+}
+
+// GET - Menü verilerini getir (hem categories hem flat menuItems döner)
 export async function GET() {
   try {
     const client = await clientPromise
     const db = client.db('restaurant-qr')
-    
-    // Menü öğelerini kategoriye göre grupla
-    const menuItems = await db.collection('menu').find({ available: true }).toArray()
-    
-    // Kategorilere göre grupla
-    const categorizedMenu = {}
-    menuItems.forEach(item => {
-      if (!categorizedMenu[item.category]) {
-        categorizedMenu[item.category] = []
+
+    // İsterseniz tümünü çekip available alanını item bazında taşıyalım
+    const menuItemsRaw = await db.collection('menu').find({}).toArray()
+
+    // Kategori kümesini topla
+    const categorySet = new Map() // name -> { id, name }
+    menuItemsRaw.forEach((doc) => {
+      const catName = doc?.category ?? 'Diğer'
+      const id = toCategoryId(catName)
+      if (!categorySet.has(catName)) {
+        categorySet.set(catName, { id, name: catName })
       }
-      categorizedMenu[item.category].push({
-        id: item._id.toString(),
-        name: item.name,
-        description: item.description,
-        price: parseFloat(item.price) || 0,
-        image: item.image,
-        allergens: item.allergens
-      })
     })
-    
-    // Response formatını düzenle
-    const categories = Object.keys(categorizedMenu).map(categoryName => ({
-      id: categoryName.toLowerCase().replace(/\s+/g, '-'),
-      name: categoryName,
-      items: categorizedMenu[categoryName]
-    }))
-    
+
+    // categories çıktısı
+    const categories = Array.from(categorySet.values())
+
+    // Flat menuItems çıktısı (frontend burada düz dizi bekliyor)
+    const menuItems = menuItemsRaw.map((doc) => {
+      const catName = doc?.category ?? 'Diğer'
+      const categoryId = toCategoryId(catName)
+
+      // Opsiyonel alanlar için sağlam default'lar
+      const cookingTime = doc?.cookingTime ?? null
+      const spicyLevel = toNumber(doc?.spicyLevel ?? 0, 0)
+      const dietaryInfo = doc?.dietaryInfo ?? null
+      const nutritionInfo = doc?.nutritionInfo ?? null
+      const customizations = doc?.customizations ?? { removable: [], extras: [] }
+      const allergens = Array.isArray(doc?.allergens) ? doc.allergens : []
+
+      return {
+        id: String(doc._id),
+        name: doc?.name ?? 'Ürün',
+        description: doc?.description ?? '',
+        price: toNumber(doc?.price, 0),
+        image: doc?.image || null,
+        allergens,
+        available: doc?.available !== false, // default: true
+        categoryId,                         // kritik: filtre için gerekli
+        cookingTime,
+        spicyLevel,
+        dietaryInfo,
+        nutritionInfo,
+        customizations,
+      }
+    })
+
     return NextResponse.json({
       success: true,
-      categories: categories
+      categories,
+      menuItems,
     })
-    
   } catch (error) {
     console.error('Menu GET error:', error)
     return NextResponse.json(
       { success: false, error: 'Menü verileri alınamadı' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
@@ -52,42 +88,56 @@ export async function POST(request) {
   try {
     const client = await clientPromise
     const db = client.db('restaurant-qr')
-    
+
     const data = await request.json()
-    
-    // Veri validasyonu
-    if (!data.name || !data.description || !data.price || !data.category) {
+
+    // Zorunlu alan kontrolü
+    if (!data?.name || !data?.description || data?.price == null || !data?.category) {
       return NextResponse.json(
-        { success: false, error: 'Eksik bilgiler' },
-        { status: 400 }
+        { success: false, error: 'Eksik bilgiler (name, description, price, category zorunlu)' },
+        { status: 400 },
       )
     }
-    
-    const menuItem = {
-      name: data.name,
-      description: data.description,
-      price: parseFloat(data.price),
-      category: data.category,
-      image: data.image || null,
-      allergens: data.allergens || [],
-      available: true,
-      createdAt: new Date(),
-      updatedAt: new Date()
+
+    // Normalize
+    const price = toNumber(data.price, NaN)
+    if (!Number.isFinite(price) || price < 0) {
+      return NextResponse.json(
+        { success: false, error: 'Geçersiz fiyat' },
+        { status: 400 },
+      )
     }
-    
+
+    const menuItem = {
+      name: String(data.name),
+      description: String(data.description),
+      price,
+      category: String(data.category),
+      image: data.image || null,
+      allergens: Array.isArray(data.allergens) ? data.allergens : [],
+      available: data.available === false ? false : true,
+      // Opsiyonel alanlar
+      cookingTime: data.cookingTime ?? null,     // dk (sayı ya da null)
+      spicyLevel: toNumber(data.spicyLevel ?? 0, 0),
+      dietaryInfo: data.dietaryInfo ?? null,     // { isVegan, isVegetarian, ... } olabilir
+      nutritionInfo: data.nutritionInfo ?? null, // { calories, protein, ... } olabilir
+      customizations: data.customizations ?? { removable: [], extras: [] }, // extras: [{ingredientId, price}]
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+
     const result = await db.collection('menu').insertOne(menuItem)
-    
+
     return NextResponse.json({
       success: true,
       id: result.insertedId,
-      message: 'Menü öğesi başarıyla eklendi'
+      message: 'Menü öğesi başarıyla eklendi',
     })
-    
   } catch (error) {
     console.error('Menu POST error:', error)
     return NextResponse.json(
       { success: false, error: 'Menü öğesi eklenemedi' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
