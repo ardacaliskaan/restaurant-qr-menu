@@ -14,7 +14,8 @@ import {
   ChevronLeft,
   Bell,
   Folder,
-  ChefHat
+  ChefHat,
+  Users 
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -56,13 +57,14 @@ export default function AdminLayout({ children }) {
   }
 
   const menuItems = [
-    { href: '/admin', label: 'Dashboard', icon: Home },
-    { href: '/admin/categories', label: 'Kategoriler', icon: Folder },
-    { href: '/admin/ingredients', label: 'Malzemeler', icon: ChefHat },
-    { href: '/admin/menu', label: 'Menü Yönetimi', icon: Menu },
-    { href: '/admin/orders', label: 'Siparişler', icon: ShoppingBag },
-    { href: '/admin/qr', label: 'QR Kodlar', icon: QrCode },
-  ]
+  { href: '/admin', label: 'Dashboard', icon: Home },
+  { href: '/admin/categories', label: 'Kategoriler', icon: Folder },
+  { href: '/admin/ingredients', label: 'Malzemeler', icon: ChefHat },
+  { href: '/admin/menu', label: 'Menü Yönetimi', icon: Menu },
+  { href: '/admin/tables', label: 'Masa Yönetimi', icon: Users }, // 👈 BU SATIR EKLENDİ
+  { href: '/admin/orders', label: 'Siparişler', icon: ShoppingBag },
+  { href: '/admin/qr', label: 'QR Kodlar', icon: QrCode },
+]
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
