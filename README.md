@@ -116,20 +116,62 @@ Uygulama http://localhost:3000 adresinde çalışacak.
 ## Proje Yapısı
 
 ```
-src/
-├── app/
-│   ├── login/                 # Admin giriş sayfası
-│   ├── menu/[tableId]/        # Müşteri menü sayfası
-│   ├── admin/                 # Admin panel
-│   │   ├── categories/        # Kategori yönetimi
-│   │   ├── ingredients/       # Malzeme yönetimi
-│   │   ├── menu/              # Menü yönetimi
-│   │   ├── orders/            # Sipariş yönetimi
-│   │   └── qr/                # QR kod üreticisi
-│   └── api/                   # API endpoints
-├── components/                # Reusable components
-├── lib/                       # Utility libraries
-└── scripts/                   # Database scripts
+restaurant-qr-menu/
+├── .gitignore
+├── README.md
+├── package.json
+├── jsconfig.json
+├── eslint.config.mjs
+├── next.config.mjs
+├── tailwind.config.js
+├── postcss.config.mjs
+├── scripts/
+│   └── seed.js                # Demo veri script'i
+├── public/
+│   └── uploads/               # Yüklenen resimler
+├── src/
+│   ├── app/
+│   │   ├── globals.css        # Global stiller
+│   │   ├── layout.js          # Root layout
+│   │   ├── page.js            # Ana sayfa
+│   │   ├── login/             # Admin giriş
+│   │   │   └── page.js
+│   │   ├── menu/              # Müşteri menüsü
+│   │   │   └── [tableId]/
+│   │   │       └── page.js
+│   │   ├── admin/             # Admin panel
+│   │   │   ├── layout.js      # Admin layout
+│   │   │   ├── page.js        # Dashboard
+│   │   │   ├── categories/    # Kategori yönetimi
+│   │   │   │   └── page.js
+│   │   │   ├── ingredients/   # Malzeme yönetimi
+│   │   │   │   └── page.js
+│   │   │   ├── menu/          # Menü yönetimi
+│   │   │   │   └── page.js
+│   │   │   ├── orders/        # Sipariş yönetimi
+│   │   │   │   └── page.js
+│   │   │   └── qr/            # QR kod üreticisi
+│   │   │       └── page.js
+│   │   └── api/               # API endpoints
+│   │       ├── auth/          # Authentication
+│   │       │   ├── login/
+│   │       │   ├── logout/
+│   │       │   └── verify/
+│   │       ├── menu/          # Müşteri menü API
+│   │       ├── orders/        # Sipariş API
+│   │       ├── upload/        # Resim upload API
+│   │       └── admin/         # Admin API'leri
+│   │           ├── categories/
+│   │           ├── ingredients/
+│   │           └── menu/
+│   ├── components/            # Reusable components
+│   │   ├── AuthGuard.js       # Authentication guard
+│   │   └── ImageUpload.js     # Resim upload komponenti
+│   └── lib/                   # Utility libraries
+│       ├── mongodb.js         # Database bağlantısı
+│       ├── auth.js            # Authentication utilities
+│       └── models/            # Data modelleri
+│           └── category.js
 ```
 
 ## API Endpoints
