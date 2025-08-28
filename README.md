@@ -1,36 +1,214 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Restaurant QR Menu System
 
-## Getting Started
+Modern, profesyonel QR menü yönetim sistemi. Restoran işletmecileri için tasarlanmış tam kapsamlı dijital menü çözümü.
 
-First, run the development server:
+## Özellikler
 
+### 🔐 Admin Yönetimi
+- Güvenli admin girişi
+- Session-based authentication
+- Role-based erişim kontrolü
+
+### 📂 Kategori Yönetimi
+- Hiyerarşik kategori yapısı (ana/alt kategoriler)
+- Görsel destekli kategoriler
+- Sıralama ve aktiflik durumu yönetimi
+- Sürükle-bırak desteği
+
+### 🧄 Malzeme Yönetimi
+- 8 farklı malzeme kategorisi
+- Alerjen bilgi sistemi
+- Diyet etiketleri (vegan, vejetaryen, glutensiz)
+- Ekstra fiyat belirleme
+
+### 🍕 Gelişmiş Menü Yönetimi
+- 4 sekmeli form sistemi:
+  - **Temel Bilgiler**: Ad, açıklama, fiyat, kategori
+  - **Malzemeler**: Ürün içeriği seçimi
+  - **Özelleştirme**: Çıkarılabilir/ekstra malzemeler
+  - **Beslenme & Diyet**: Kalori, alerjen, diyet bilgileri
+- Profesyonel fotoğraf upload sistemi
+- Acılık seviyesi ve hazırlama süresi
+
+### 📱 QR Kod Sistemi
+- Masa bazlı QR kod üretimi
+- Toplu QR kod oluşturma
+- Yazdırma özelliği
+- Custom URL desteği
+
+### 🛒 Sipariş Yönetimi
+- Real-time sipariş takibi
+- Masa bazlı sipariş alma
+- Durum güncellemeleri (Bekliyor → Hazırlanıyor → Hazır → Teslim)
+- Sipariş geçmişi
+
+### 📊 Dashboard
+- Günlük istatistikler
+- Aktif masa sayısı
+- Ciro takibi
+- Son siparişler
+
+## Teknoloji Stack
+
+- **Frontend**: Next.js 15 (App Router)
+- **Backend**: Next.js API Routes
+- **Database**: MongoDB
+- **Styling**: Tailwind CSS
+- **Animations**: Framer Motion
+- **Icons**: Lucide React
+- **Notifications**: React Hot Toast
+- **Authentication**: Session-based
+- **Image Upload**: Local file system
+
+## Kurulum
+
+### Gereksinimler
+- Node.js 18+
+- MongoDB
+- npm veya yarn
+
+### 1. Repo'yu klonlayın
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/username/restaurant-qr-menu.git
+cd restaurant-qr-menu
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Bağımlılıkları yükleyin
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+### 3. Ortam değişkenlerini ayarlayın
+`.env.local` dosyası oluşturun:
+```
+MONGODB_URI=mongodb://localhost:27017/restaurant-qr
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 4. MongoDB'yi başlatın
+```bash
+# macOS (Homebrew)
+brew services start mongodb-community
 
-## Learn More
+# Linux
+sudo systemctl start mongod
 
-To learn more about Next.js, take a look at the following resources:
+# Windows
+net start MongoDB
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 5. Demo verilerini yükleyin
+```bash
+node scripts/seed.js
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 6. Geliştirme sunucusunu başlatın
+```bash
+npm run dev
+```
 
-## Deploy on Vercel
+Uygulama http://localhost:3000 adresinde çalışacak.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Admin Giriş Bilgileri
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Kullanıcı Adı**: admin
+- **Şifre**: admin123
+
+## Proje Yapısı
+
+```
+src/
+├── app/
+│   ├── login/                 # Admin giriş sayfası
+│   ├── menu/[tableId]/        # Müşteri menü sayfası
+│   ├── admin/                 # Admin panel
+│   │   ├── categories/        # Kategori yönetimi
+│   │   ├── ingredients/       # Malzeme yönetimi
+│   │   ├── menu/              # Menü yönetimi
+│   │   ├── orders/            # Sipariş yönetimi
+│   │   └── qr/                # QR kod üreticisi
+│   └── api/                   # API endpoints
+├── components/                # Reusable components
+├── lib/                       # Utility libraries
+└── scripts/                   # Database scripts
+```
+
+## API Endpoints
+
+### Authentication
+- `POST /api/auth/login` - Admin girişi
+- `POST /api/auth/logout` - Çıkış
+- `GET /api/auth/verify` - Session doğrulama
+
+### Categories
+- `GET /api/admin/categories` - Kategorileri listele
+- `POST /api/admin/categories` - Kategori oluştur
+- `PUT /api/admin/categories` - Kategori güncelle
+- `DELETE /api/admin/categories` - Kategori sil
+
+### Ingredients
+- `GET /api/admin/ingredients` - Malzemeleri listele
+- `POST /api/admin/ingredients` - Malzeme oluştur
+- `PUT /api/admin/ingredients` - Malzeme güncelle
+- `DELETE /api/admin/ingredients` - Malzeme sil
+
+### Menu
+- `GET /api/menu` - Müşteri menüsü
+- `GET /api/admin/menu` - Admin menü listesi
+- `POST /api/admin/menu` - Ürün oluştur
+- `PUT /api/admin/menu` - Ürün güncelle
+- `DELETE /api/admin/menu` - Ürün sil
+
+### Orders
+- `GET /api/orders` - Sipariş listesi
+- `POST /api/orders` - Sipariş oluştur
+- `PUT /api/orders` - Sipariş güncelle
+
+### Upload
+- `POST /api/upload` - Resim yükleme
+- `DELETE /api/upload` - Resim silme
+
+## Kullanım
+
+### 1. Admin Panel
+http://localhost:3000/admin adresinde admin paneline erişin.
+
+### 2. Menü Görüntüleme
+http://localhost:3000/menu/[masa-numarası] formatında müşteri menüsüne erişim.
+
+### 3. QR Kod Oluşturma
+Admin panelden QR kod sekmesine giderek masa bazlı QR kodlar oluşturun.
+
+## Geliştirme Planı
+
+### Yakında Eklenecek Özellikler
+- Masa yönetim sistemi
+- Adisyon ve fatura sistemi
+- Müşteri menüsü tasarım iyileştirmeleri
+- Raporlama sistemi
+- Çok dilli destek
+
+### Gelecek Güncellemeler
+- Push notifications
+- Online ödeme entegrasyonu
+- Stok takip sistemi
+- Müşteri geri bildirimi
+
+## Katkıda Bulunma
+
+1. Fork yapın
+2. Feature branch oluşturun (`git checkout -b feature/amazing-feature`)
+3. Commit yapın (`git commit -m 'Add amazing feature'`)
+4. Push yapın (`git push origin feature/amazing-feature`)
+5. Pull Request oluşturun
+
+## Lisans
+
+Bu proje MIT lisansı altında lisanslanmıştır.
+
+## Destek
+
+Herhangi bir sorun için issue açabilir veya email ile iletişime geçebilirsiniz.
+
+---
+
+**Not**: Bu sistem profesyonel restoran kullanımı için tasarlanmıştır. Production ortamında kullanmadan önce güvenlik ayarlarını gözden geçirin.
