@@ -1,8 +1,9 @@
+// src/app/api/orders/route.js - Düzeltilmiş Orders API
 import { NextResponse } from 'next/server'
 import clientPromise from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
 
-// GET - Siparişleri getir (geliştirilmiş)
+// GET - Siparişleri getir (düzeltilmiş)
 export async function GET(request) {
   try {
     const client = await clientPromise
@@ -19,18 +20,29 @@ export async function GET(request) {
     const filter = {}
     if (status) filter.status = status
     if (tableNumber) {
-      // Hem tableNumber hem tableId alanlarını kontrol et
       filter.$or = [
         { tableNumber: parseInt(tableNumber) },
         { tableId: tableNumber.toString() }
       ]
     }
     
-    // Tarih filtresi
-    if (startDate || endDate) {
-      filter.createdAt = {}
-      if (startDate) filter.createdAt.$gte = new Date(startDate)
-      if (endDate) filter.createdAt.$lte = new Date(endDate)
+    // Tarih filtresi (bugün için)
+    if (!startDate && !endDate) {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const tomorrow = new Date(today)
+      tomorrow.setDate(tomorrow.getDate() + 1)
+      
+      filter.createdAt = {
+        $gte: today,
+        $lt: tomorrow
+      }
+    } else {
+      if (startDate || endDate) {
+        filter.createdAt = {}
+        if (startDate) filter.createdAt.$gte = new Date(startDate)
+        if (endDate) filter.createdAt.$lte = new Date(endDate)
+      }
     }
     
     const orders = await db.collection('orders')
@@ -42,7 +54,7 @@ export async function GET(request) {
     const formattedOrders = orders.map(order => ({
       ...order,
       _id: order._id.toString(),
-      // Eski sistemle uyumlu kalması için tableId ekle
+      // Uyumluluk için her iki alanı da ekle
       tableId: order.tableId || order.tableNumber?.toString(),
       tableNumber: order.tableNumber || parseInt(order.tableId || '0')
     }))
@@ -52,30 +64,28 @@ export async function GET(request) {
       orders: formattedOrders
     }
     
-    // İstatistikleri hesapla (istenirse)
+    // İstatistikleri hesapla
     if (includeStats) {
+      const activeStatuses = ['pending', 'preparing', 'ready', 'delivered']
+      const activeOrders = orders.filter(o => activeStatuses.includes(o.status))
+      const completedOrders = orders.filter(o => o.status === 'completed')
+      const todayRevenue = completedOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0)
+      
       const stats = {
-        total: orders.length,
+        activeOrders: activeOrders.length,
+        totalOrders: orders.length,
+        dailyRevenue: todayRevenue.toFixed(2),
+        averageOrder: completedOrders.length > 0 
+          ? (todayRevenue / completedOrders.length).toFixed(2) 
+          : '0.00',
+        
+        // Durum bazlı istatistikler
         pending: orders.filter(o => o.status === 'pending').length,
         preparing: orders.filter(o => o.status === 'preparing').length,
         ready: orders.filter(o => o.status === 'ready').length,
         delivered: orders.filter(o => o.status === 'delivered').length,
         completed: orders.filter(o => o.status === 'completed').length,
-        cancelled: orders.filter(o => o.status === 'cancelled').length,
-        totalRevenue: orders
-          .filter(o => o.status === 'completed')
-          .reduce((sum, o) => sum + (o.totalAmount || 0), 0),
-        todayOrders: orders.filter(o => {
-          const today = new Date()
-          const orderDate = new Date(o.createdAt)
-          return orderDate.toDateString() === today.toDateString()
-        }).length
       }
-      
-      const completedOrders = orders.filter(o => o.status === 'completed')
-      stats.averageOrderValue = completedOrders.length > 0 
-        ? stats.totalRevenue / completedOrders.length 
-        : 0
       
       response.stats = stats
     }
@@ -91,43 +101,70 @@ export async function GET(request) {
   }
 }
 
-// POST - Yeni sipariş oluştur
+// POST - Yeni sipariş oluştur (düzeltilmiş)
 export async function POST(request) {
   try {
     const client = await clientPromise
     const db = client.db('restaurant-qr')
     
     const data = await request.json()
+    console.log('Received order data:', data) // Debug için
     
     // Veri validasyonu
-    if (!data.tableNumber || !data.items || data.items.length === 0) {
+    if (!data.tableNumber && !data.tableId) {
       return NextResponse.json(
-        { success: false, error: 'Eksik sipariş bilgileri' },
+        { success: false, error: 'Masa numarası gerekli' },
         { status: 400 }
       )
     }
     
-    // Toplam tutarı hesapla
+    if (!data.items || data.items.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Sipariş içeriği gerekli' },
+        { status: 400 }
+      )
+    }
+    
+    // Masa numarasını normalize et
+    const tableNumber = data.tableNumber || data.tableId
+    
+    // Toplam tutarı hesapla (customization'ları da dahil et)
     const totalAmount = data.items.reduce((total, item) => {
-      return total + (item.price * item.quantity)
+      let itemTotal = item.price * item.quantity
+      
+      // Ekstra malzeme fiyatları
+      if (item.customizations?.extras) {
+        const extrasTotal = item.customizations.extras.reduce((sum, extra) => {
+          return sum + (extra.price * item.quantity)
+        }, 0)
+        itemTotal += extrasTotal
+      }
+      
+      return total + itemTotal
     }, 0)
     
     const order = {
-      tableNumber: parseInt(data.tableNumber),
-      tableId: data.tableNumber.toString(), // Hem eski hem yeni sistem için
+      tableNumber: parseInt(tableNumber),
+      tableId: tableNumber.toString(),
       items: data.items.map(item => ({
         menuItemId: item.id || item.menuItemId,
         name: item.name,
         price: parseFloat(item.price),
         quantity: parseInt(item.quantity),
+        customizations: {
+          removed: item.customizations?.removed || [],
+          extras: item.customizations?.extras || []
+        },
         notes: item.notes || ''
       })),
       totalAmount: parseFloat(totalAmount.toFixed(2)),
       status: 'pending',
-      customerNotes: data.notes || '',
+      customerNotes: data.notes || data.customerNotes || '',
       createdAt: new Date(),
       updatedAt: new Date()
     }
+    
+    console.log('Creating order:', order) // Debug için
     
     const result = await db.collection('orders').insertOne(order)
     
@@ -152,48 +189,32 @@ export async function POST(request) {
   }
 }
 
-// PUT - Sipariş durumunu güncelle (geliştirilmiş)
+// PUT - Sipariş durumunu güncelle
 export async function PUT(request) {
   try {
     const client = await clientPromise
     const db = client.db('restaurant-qr')
     
     const data = await request.json()
-    const { orderId, status, notes, tableId, bulkUpdate } = data
+    const { orderId, status, notes, tableNumber, action } = data
     
-    // Toplu güncelleme (masa bazlı)
-    if (bulkUpdate && tableId) {
-      if (!status) {
-        return NextResponse.json(
-          { success: false, error: 'Durum bilgisi gerekli' },
-          { status: 400 }
-        )
-      }
-      
-      const validStatuses = ['pending', 'preparing', 'ready', 'delivered', 'completed', 'cancelled']
-      if (!validStatuses.includes(status)) {
-        return NextResponse.json(
-          { success: false, error: 'Geçersiz sipariş durumu' },
-          { status: 400 }
-        )
-      }
-      
+    // Masa kapatma işlemi
+    if (action === 'closeTable' && tableNumber) {
       const updateData = {
-        status,
+        status: 'completed',
+        completedAt: new Date(),
         updatedAt: new Date()
       }
       
       if (notes) updateData.adminNotes = notes
-      if (status === 'completed') updateData.completedAt = new Date()
-      if (status === 'cancelled') updateData.cancelledAt = new Date()
       
       const result = await db.collection('orders').updateMany(
         {
           $or: [
-            { tableId: tableId.toString() },
-            { tableNumber: parseInt(tableId) }
+            { tableNumber: parseInt(tableNumber) },
+            { tableId: tableNumber.toString() }
           ],
-          status: { $in: ['pending', 'preparing', 'ready'] }
+          status: { $in: ['pending', 'preparing', 'ready', 'delivered'] }
         },
         { $set: updateData }
       )
@@ -201,7 +222,7 @@ export async function PUT(request) {
       return NextResponse.json({
         success: true,
         modifiedCount: result.modifiedCount,
-        message: `Masa ${tableId} için ${result.modifiedCount} sipariş güncellendi`
+        message: `Masa ${tableNumber} kapatıldı`
       })
     }
     
@@ -213,7 +234,6 @@ export async function PUT(request) {
       )
     }
     
-    // Geçerli durumları kontrol et
     const validStatuses = ['pending', 'preparing', 'ready', 'delivered', 'completed', 'cancelled']
     if (!validStatuses.includes(status)) {
       return NextResponse.json(
@@ -243,7 +263,6 @@ export async function PUT(request) {
       )
     }
     
-    // Güncellenmiş siparişi döndür
     const updatedOrder = await db.collection('orders').findOne({ _id: new ObjectId(orderId) })
     
     return NextResponse.json({
@@ -259,66 +278,6 @@ export async function PUT(request) {
     console.error('Orders PUT error:', error)
     return NextResponse.json(
       { success: false, error: 'Sipariş güncellenemedi' },
-      { status: 500 }
-    )
-  }
-}
-
-// DELETE - Sipariş sil/iptal et
-export async function DELETE(request) {
-  try {
-    const client = await clientPromise
-    const db = client.db('restaurant-qr')
-    
-    const { orderId, reason } = await request.json()
-    
-    if (!orderId) {
-      return NextResponse.json(
-        { success: false, error: 'Sipariş ID gerekli' },
-        { status: 400 }
-      )
-    }
-    
-    // Siparişi kontrol et
-    const order = await db.collection('orders').findOne({ _id: new ObjectId(orderId) })
-    
-    if (!order) {
-      return NextResponse.json(
-        { success: false, error: 'Sipariş bulunamadı' },
-        { status: 404 }
-      )
-    }
-    
-    // Tamamlanan siparişler silinemez
-    if (['completed', 'delivered'].includes(order.status)) {
-      return NextResponse.json(
-        { success: false, error: 'Tamamlanan sipariş silinemez' },
-        { status: 400 }
-      )
-    }
-    
-    // Siparişi iptal et (silme yerine)
-    const result = await db.collection('orders').updateOne(
-      { _id: new ObjectId(orderId) },
-      {
-        $set: {
-          status: 'cancelled',
-          cancelledAt: new Date(),
-          cancellationReason: reason || 'Admin tarafından iptal edildi',
-          updatedAt: new Date()
-        }
-      }
-    )
-    
-    return NextResponse.json({
-      success: true,
-      message: 'Sipariş iptal edildi'
-    })
-    
-  } catch (error) {
-    console.error('Orders DELETE error:', error)
-    return NextResponse.json(
-      { success: false, error: 'Sipariş iptal edilemedi' },
       { status: 500 }
     )
   }
