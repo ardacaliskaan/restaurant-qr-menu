@@ -1,10 +1,10 @@
+// src/app/api/menu/route.js - Düzeltilmiş versiyon
 import { NextResponse } from 'next/server'
 import clientPromise from '@/lib/mongodb'
 
 // Yardımcı: Kategori ismini slug'a çevir
 function toCategoryId(name) {
   const base = String(name ?? 'Diğer').trim().toLowerCase()
-  // Boşlukları '-' yap, alfanümerik ve '-' dışını temizle
   return base
     .replace(/\s+/g, '-')
     .replace(/[^a-z0-9-]/g, '')
@@ -17,17 +17,20 @@ function toNumber(val, fallback = 0) {
   return Number.isFinite(n) ? n : fallback
 }
 
-// GET - Menü verilerini getir (hem categories hem flat menuItems döner)
+// GET - Menü verilerini getir (categories, menuItems VE ingredients döner)
 export async function GET() {
   try {
     const client = await clientPromise
     const db = client.db('restaurant-qr')
 
-    // İsterseniz tümünü çekip available alanını item bazında taşıyalım
+    // Menü öğelerini çek
     const menuItemsRaw = await db.collection('menu').find({}).toArray()
 
+    // Malzemeleri çek - ARTIK BU EKLENDİ!
+    const ingredientsRaw = await db.collection('ingredients').find({}).toArray()
+
     // Kategori kümesini topla
-    const categorySet = new Map() // name -> { id, name }
+    const categorySet = new Map()
     menuItemsRaw.forEach((doc) => {
       const catName = doc?.category ?? 'Diğer'
       const id = toCategoryId(catName)
@@ -36,15 +39,27 @@ export async function GET() {
       }
     })
 
-    // categories çıktısı
+    // Categories çıktısı
     const categories = Array.from(categorySet.values())
 
-    // Flat menuItems çıktısı (frontend burada düz dizi bekliyor)
+    // Ingredients çıktısı - ID'leri normalize et
+    const ingredients = ingredientsRaw.map((doc) => ({
+      id: String(doc._id),        // Hem id hem _id olarak kullanılabilsin
+      _id: String(doc._id),
+      name: doc.name,
+      category: doc.category,
+      allergens: doc.allergens || [],
+      isVegetarian: doc.isVegetarian || false,
+      isVegan: doc.isVegan || false,
+      isGlutenFree: doc.isGlutenFree || false,
+      extraPrice: doc.extraPrice || 0
+    }))
+
+    // MenuItems çıktısı
     const menuItems = menuItemsRaw.map((doc) => {
       const catName = doc?.category ?? 'Diğer'
       const categoryId = toCategoryId(catName)
 
-      // Opsiyonel alanlar için sağlam default'lar
       const cookingTime = doc?.cookingTime ?? null
       const spicyLevel = toNumber(doc?.spicyLevel ?? 0, 0)
       const dietaryInfo = doc?.dietaryInfo ?? null
@@ -54,13 +69,14 @@ export async function GET() {
 
       return {
         id: String(doc._id),
+        _id: String(doc._id),         // Hem id hem _id
         name: doc?.name ?? 'Ürün',
         description: doc?.description ?? '',
         price: toNumber(doc?.price, 0),
         image: doc?.image || null,
         allergens,
-        available: doc?.available !== false, // default: true
-        categoryId,                         // kritik: filtre için gerekli
+        available: doc?.available !== false,
+        categoryId,
         cookingTime,
         spicyLevel,
         dietaryInfo,
@@ -69,16 +85,19 @@ export async function GET() {
       }
     })
 
+    // ÖNEMLİ: Artık ingredients de döndürülüyor!
     return NextResponse.json({
       success: true,
       categories,
       menuItems,
+      ingredients    // BU EKSİKTİ!
     })
+
   } catch (error) {
     console.error('Menu GET error:', error)
     return NextResponse.json(
       { success: false, error: 'Menü verileri alınamadı' },
-      { status: 500 },
+      { status: 500 }
     )
   }
 }
@@ -95,7 +114,7 @@ export async function POST(request) {
     if (!data?.name || !data?.description || data?.price == null || !data?.category) {
       return NextResponse.json(
         { success: false, error: 'Eksik bilgiler (name, description, price, category zorunlu)' },
-        { status: 400 },
+        { status: 400 }
       )
     }
 
@@ -104,7 +123,7 @@ export async function POST(request) {
     if (!Number.isFinite(price) || price < 0) {
       return NextResponse.json(
         { success: false, error: 'Geçersiz fiyat' },
-        { status: 400 },
+        { status: 400 }
       )
     }
 
@@ -117,11 +136,11 @@ export async function POST(request) {
       allergens: Array.isArray(data.allergens) ? data.allergens : [],
       available: data.available === false ? false : true,
       // Opsiyonel alanlar
-      cookingTime: data.cookingTime ?? null,     // dk (sayı ya da null)
+      cookingTime: data.cookingTime ?? null,
       spicyLevel: toNumber(data.spicyLevel ?? 0, 0),
-      dietaryInfo: data.dietaryInfo ?? null,     // { isVegan, isVegetarian, ... } olabilir
-      nutritionInfo: data.nutritionInfo ?? null, // { calories, protein, ... } olabilir
-      customizations: data.customizations ?? { removable: [], extras: [] }, // extras: [{ingredientId, price}]
+      dietaryInfo: data.dietaryInfo ?? null,
+      nutritionInfo: data.nutritionInfo ?? null,
+      customizations: data.customizations ?? { removable: [], extras: [] },
       createdAt: new Date(),
       updatedAt: new Date(),
     }
@@ -137,7 +156,7 @@ export async function POST(request) {
     console.error('Menu POST error:', error)
     return NextResponse.json(
       { success: false, error: 'Menü öğesi eklenemedi' },
-      { status: 500 },
+      { status: 500 }
     )
   }
 }

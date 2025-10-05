@@ -48,7 +48,7 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
     const tablesParam = searchParams.get('tables')
-    const baseUrl = searchParams.get('baseUrl') || 'http://localhost:3000'
+    const baseUrl = searchParams.get('baseUrl') || 'http://192.168.1.100:3000'
 
     if (!tablesParam) {
       return NextResponse.json({ 

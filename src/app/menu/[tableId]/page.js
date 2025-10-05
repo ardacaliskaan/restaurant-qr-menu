@@ -616,7 +616,7 @@ function MenuItem({ item, index, isFavorite, onToggleFavorite, onOpenModal }) {
             className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-6 py-3 rounded-2xl font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2 group"
           >
             <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
-            <span>Ekle</span>
+            <span>İlerle</span>
           </motion.button>
         </div>
       </div>
@@ -800,20 +800,21 @@ function CartModal({ show, cart, totalPrice, onClose, onUpdateQuantity, onSendOr
   )
 }
 
-// Item Detail Modal Component
+// Item Detail Modal Component - Footer Düzeltilmiş
 function ItemDetailModal({ item, ingredients, customizations, onClose, onToggleRemoved, onToggleExtra, onUpdateNotes, onAddToCart }) {
   if (!item) return null
 
-const getIngredientById = (id) => {
-  return ingredients.find(ing => 
-    (ing._id === id) || 
-    (ing.id === id) || 
-    (ing._id === id.toString()) || 
-    (ing.id === id.toString()) ||
-    (ing._id?.toString() === id) ||
-    (ing.id?.toString() === id)
-  )
-}  
+  const getIngredientById = (id) => {
+    return ingredients.find(ing => 
+      (ing._id === id) || 
+      (ing.id === id) || 
+      (ing._id === id.toString()) || 
+      (ing.id === id.toString()) ||
+      (ing._id?.toString() === id) ||
+      (ing.id?.toString() === id)
+    )
+  }
+  
   const calculateTotalPrice = () => {
     let total = item.price
     if (customizations.extras) {
@@ -828,7 +829,7 @@ const getIngredientById = (id) => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-4"
+        className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
         onClick={onClose}
       >
         <motion.div
@@ -836,10 +837,10 @@ const getIngredientById = (id) => {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9, y: 100 }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl"
+          className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[95vh] flex flex-col overflow-hidden"
         >
           {/* Image Header */}
-          <div className="relative h-64 bg-gradient-to-br from-orange-100 to-red-100">
+          <div className="relative h-48 sm:h-64 bg-gradient-to-br from-orange-100 to-red-100 flex-shrink-0">
             {item.image ? (
               <Image
                 src={item.image}
@@ -887,15 +888,15 @@ const getIngredientById = (id) => {
             </div>
           </div>
 
-          {/* Content */}
-          <div className="overflow-y-auto max-h-[calc(90vh-320px)]">
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto min-h-0">
             {/* Basic Info */}
             <div className="p-6 border-b border-gray-100">
-              <h2 className="text-3xl font-bold text-gray-900 mb-3">{item.name}</h2>
-              <p className="text-gray-600 text-lg leading-relaxed mb-4">{item.description}</p>
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">{item.name}</h2>
+              <p className="text-gray-600 text-base sm:text-lg leading-relaxed mb-4">{item.description}</p>
               
-              <div className="flex items-center gap-6 mb-4">
-                <div className="text-4xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+              <div className="flex flex-wrap items-center gap-4 mb-4">
+                <div className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
                   ₺{item.price}
                 </div>
                 
@@ -915,8 +916,8 @@ const getIngredientById = (id) => {
               </div>
 
               {/* Nutrition Info */}
-              {item.nutritionInfo && (
-                <div className="grid grid-cols-4 gap-3 p-4 bg-gray-50 rounded-2xl">
+              {item.nutritionInfo && Object.values(item.nutritionInfo).some(val => val) && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-gray-50 rounded-2xl">
                   {item.nutritionInfo.protein && (
                     <div className="text-center">
                       <div className="text-lg font-bold text-gray-900">{item.nutritionInfo.protein}g</div>
@@ -952,7 +953,7 @@ const getIngredientById = (id) => {
                   <Minus className="w-5 h-5 text-red-500" />
                   Çıkarılabilir Malzemeler
                 </h3>
-                <div className="grid grid-cols-1 gap-3">
+                <div className="space-y-3">
                   {item.customizations.removable.map((ingredientId) => {
                     const ingredient = getIngredientById(ingredientId)
                     if (!ingredient) return null
@@ -964,7 +965,7 @@ const getIngredientById = (id) => {
                         key={ingredient._id || ingredient.id}
                         whileTap={{ scale: 0.98 }}
                         onClick={() => onToggleRemoved(ingredient)}
-                        className={`p-4 rounded-2xl border-2 transition-all text-left ${
+                        className={`w-full p-4 rounded-2xl border-2 transition-all text-left ${
                           isRemoved 
                             ? 'bg-red-50 border-red-300 text-red-800' 
                             : 'bg-gray-50 border-gray-200 text-gray-700 hover:border-gray-300'
@@ -999,7 +1000,7 @@ const getIngredientById = (id) => {
                   <Plus className="w-5 h-5 text-green-500" />
                   Ekstra Malzemeler
                 </h3>
-                <div className="grid grid-cols-1 gap-3">
+                <div className="space-y-3">
                   {item.customizations.extras.map((extra, index) => {
                     const ingredient = getIngredientById(extra.ingredientId)
                     if (!ingredient) return null
@@ -1012,7 +1013,7 @@ const getIngredientById = (id) => {
                         key={index}
                         whileTap={{ scale: 0.98 }}
                         onClick={() => onToggleExtra(ingredient, extraPrice)}
-                        className={`p-4 rounded-2xl border-2 transition-all text-left ${
+                        className={`w-full p-4 rounded-2xl border-2 transition-all text-left ${
                           isExtra 
                             ? 'bg-green-50 border-green-300 text-green-800' 
                             : 'bg-gray-50 border-gray-200 text-gray-700 hover:border-gray-300'
@@ -1028,7 +1029,7 @@ const getIngredientById = (id) => {
                             <div>
                               <span className="font-medium block">{ingredient.name}</span>
                               {extraPrice > 0 && (
-                                <span className="text-sm text-gray-500">+₺{extraPrice}</span>
+                                <span className="text-sm text-gray-500">+₺{extraPrice.toFixed(2)}</span>
                               )}
                             </div>
                           </div>
@@ -1077,24 +1078,37 @@ const getIngredientById = (id) => {
             )}
           </div>
 
-          {/* Footer */}
-          <div className="border-t border-gray-200 p-6 bg-gray-50">
+          {/* STICKY FOOTER - Her zaman görünür */}
+          <div className="border-t border-gray-200 bg-white p-4 sm:p-6 flex-shrink-0">
+            {/* Price Display */}
             <div className="flex items-center justify-between mb-4">
-              <span className="text-lg font-semibold text-gray-900">Toplam Fiyat:</span>
-              <span className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+              <span className="text-lg sm:text-xl font-semibold text-gray-900">Toplam Fiyat:</span>
+              <span className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
                 ₺{calculateTotalPrice().toFixed(2)}
               </span>
             </div>
             
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => onAddToCart(item, customizations)}
-              className="w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-4 rounded-2xl font-bold text-lg hover:shadow-xl transition-all flex items-center justify-center gap-3"
-            >
-              <Plus className="w-6 h-6" />
-              <span>Sepete Ekle</span>
-            </motion.button>
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={onClose}
+                className="flex-1 py-3 px-4 bg-gray-100 text-gray-700 rounded-2xl font-semibold hover:bg-gray-200 transition-colors"
+              >
+                İptal
+              </motion.button>
+              
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => onAddToCart(item, customizations)}
+                className="flex-2 py-4 px-6 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-2xl font-bold text-lg hover:shadow-xl transition-all flex items-center justify-center gap-3 min-w-[200px]"
+              >
+                <Plus className="w-5 h-5" />
+                <span>Onayla</span>
+              </motion.button>
+            </div>
           </div>
         </motion.div>
       </motion.div>
