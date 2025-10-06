@@ -1,3 +1,5 @@
+// src/app/api/auth/logout/route.js
+
 import { NextResponse } from 'next/server'
 
 export async function POST() {
@@ -8,14 +10,20 @@ export async function POST() {
     })
 
     // Clear auth cookie
-    response.cookies.delete('admin-session')
+    response.cookies.set('auth-token', '', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 0,
+      path: '/'
+    })
 
     return response
 
   } catch (error) {
     console.error('Logout error:', error)
     return NextResponse.json(
-      { success: false, error: 'Çıkış yapılırken hata oluştu' },
+      { success: false, error: 'Çıkış yapılamadı' },
       { status: 500 }
     )
   }

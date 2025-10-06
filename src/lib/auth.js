@@ -12,7 +12,7 @@ const JWT_EXPIRES_IN = '24h'
 // Create JWT token
 export const createToken = (user) => {
   const payload = {
-    id: user._id.toString(),
+    id: user._id?.toString() || user.id,
     username: user.username,
     role: user.role,
     permissions: user.permissions || [],
@@ -32,7 +32,7 @@ export const verifyToken = async (request) => {
   try {
     // Cookie'den token al
     const cookieStore = await cookies()
-    const token = cookieStore.get('auth-token')?.value
+    let token = cookieStore.get('auth-token')?.value
     
     if (!token) {
       // Header'dan da kontrol et
@@ -62,73 +62,6 @@ export const verifyToken = async (request) => {
       return { success: false, error: 'Kullanıcı bulunamadı veya aktif değil' }
     }
     
-    // Token bilgileri güncel mi kontrol et
-    if (user.role !== decoded.role) {
-      return { success: false, error: 'Token güncel değil, tekrar giriş yapın' }
-    }
-    
-    return {
-      success: true,
-      user: {
-        ...user,
-        id: user._id.toString(),
-        _id: undefined
-      }
-    }
-    
-  } catch (error) {
-    console.error('Token verification error:', error)
-    
-    if (error.name === 'JsonWebTokenError') {
-      return { success: false, error: 'Geçersiz token' }
-    }
-    
-    if (error.name === 'TokenExpiredError') {
-      return { success: false, error: 'Token süresi dolmuş' }
-    }
-    
-    return { success: false, error: 'Token doğrulama hatası' }
-  }
-}
-
-// Authenticate user (login)
-export const authenticateUser = async (username, password) => {
-  try {
-    const client = await clientPromise
-    const db = client.db('restaurant-qr')
-    
-    // Kullanıcıyı bul
-    const user = await db.collection('users')
-      .findOne({ 
-        username: username.toLowerCase().trim(),
-        isActive: true
-      })
-    
-    if (!user) {
-      return { success: false, error: 'Kullanıcı adı veya şifre hatalı' }
-    }
-    
-    // Şifreyi kontrol et
-    const isValidPassword = await bcrypt.compare(password, user.password)
-    
-    if (!isValidPassword) {
-      return { success: false, error: 'Kullanıcı adı veya şifre hatalı' }
-    }
-    
-    // Login istatistiklerini güncelle
-    await db.collection('users').updateOne(
-      { _id: user._id },
-      { 
-        $set: { 
-          'metadata.lastLogin': new Date(),
-          updatedAt: new Date()
-        },
-        $inc: { 
-          'metadata.loginCount': 1 
-        }
-      }
-    )
-    
     // Şifreyi response'dan çıkar
     const { password: _, ...userWithoutPassword } = user
     
@@ -136,8 +69,71 @@ export const authenticateUser = async (username, password) => {
       success: true,
       user: {
         ...userWithoutPassword,
-        id: user._id.toString(),
-        _id: undefined
+        id: user._id.toString()
+      }
+    }
+    
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError') {
+      return { success: false, error: 'Geçersiz token' }
+    }
+    if (error.name === 'TokenExpiredError') {
+      return { success: false, error: 'Token süresi dolmuş' }
+    }
+    console.error('Token verification error:', error)
+    return { success: false, error: 'Token doğrulama hatası' }
+  }
+}
+
+// Authenticate user with username/password
+export const authenticateUser = async (username, password) => {
+  try {
+    const client = await clientPromise
+    const db = client.db('restaurant-qr')
+    
+    // Kullanıcıyı bul
+    const user = await db.collection('users').findOne({
+      username: username.toLowerCase(),
+      isActive: true
+    })
+    
+    if (!user) {
+      return { success: false, error: 'Kullanıcı adı veya şifre hatalı' }
+    }
+    
+    // Şifre kontrolü
+    const isPasswordValid = await bcrypt.compare(password, user.password)
+    
+    if (!isPasswordValid) {
+      return { success: false, error: 'Kullanıcı adı veya şifre hatalı' }
+    }
+    
+    // Last login güncelle
+    await db.collection('users').updateOne(
+      { _id: user._id },
+      { 
+        $set: { 
+          'metadata.lastLogin': new Date(),
+          updatedAt: new Date()
+        },
+        $inc: {
+          'metadata.loginCount': 1
+        }
+      }
+    )
+    
+    // Token oluştur
+    const token = createToken(user)
+    
+    // Şifreyi response'dan çıkar
+    const { password: _, ...userWithoutPassword } = user
+    
+    return {
+      success: true,
+      token,
+      user: {
+        ...userWithoutPassword,
+        id: user._id.toString()
       }
     }
     
@@ -221,29 +217,6 @@ export const initializeDefaultAdmin = async () => {
     
   } catch (error) {
     console.error('Error initializing default admin:', error)
-  }
-}
-
-// Permission middleware for API routes
-export const requirePermission = (permission) => {
-  return async (request) => {
-    const authResult = await verifyToken(request)
-    
-    if (!authResult.success) {
-      return NextResponse.json(
-        { success: false, error: 'Yetkisiz erişim' },
-        { status: 401 }
-      )
-    }
-    
-    if (!hasPermission(authResult.user.permissions, permission)) {
-      return NextResponse.json(
-        { success: false, error: 'Bu işlem için yetkiniz bulunmuyor' },
-        { status: 403 }
-      )
-    }
-    
-    return { user: authResult.user }
   }
 }
 

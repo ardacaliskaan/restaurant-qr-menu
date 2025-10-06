@@ -1,3 +1,5 @@
+// src/app/admin/layout.js - Users Menüsü Eklenmiş
+
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -15,7 +17,8 @@ import {
   LogOut,
   X,
   Settings,
-  Bell
+  Bell,
+  UserCog  // 🆕 Users ikonu
 } from 'lucide-react'
 
 const menuItems = [
@@ -26,6 +29,7 @@ const menuItems = [
   { href: '/admin/tables', icon: Users, label: 'Masalar' },
   { href: '/admin/orders', icon: ShoppingCart, label: 'Siparişler' },
   { href: '/admin/qr', icon: QrCode, label: 'QR Kodlar' },
+  { href: '/admin/users', icon: UserCog, label: 'Kullanıcılar' }, // 🆕 EKLEND İ
 ]
 
 export default function AdminLayout({ children }) {

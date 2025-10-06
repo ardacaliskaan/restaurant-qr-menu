@@ -1,36 +1,15 @@
+// src/app/api/auth/verify/route.js
+
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
+import { verifyToken } from '@/lib/auth'
 
-// Basit user data (gerçek projede database'den gelecek)
-const ADMIN_USERS = [
-  {
-    id: 1,
-    username: 'admin',
-    email: 'admin@restaurant.com',
-    role: 'admin',
-    name: 'Restaurant Admin'
-  }
-]
-
-export async function GET() {
+export async function GET(request) {
   try {
-    const cookieStore = await cookies()
-    const sessionId = cookieStore.get('admin-session')?.value
+    const authResult = await verifyToken(request)
 
-    if (!sessionId) {
+    if (!authResult.success) {
       return NextResponse.json(
-        { success: false, error: 'Session bulunamadı' },
-        { status: 401 }
-      )
-    }
-
-    // Basit session validation
-    // Gerçek projede database'de session kontrolü yapılacak
-    const user = ADMIN_USERS[0] // Geçici olarak admin user döndür
-
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'Kullanıcı bulunamadı' },
+        { success: false, error: authResult.error },
         { status: 401 }
       )
     }
@@ -38,11 +17,13 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        name: user.name
+        id: authResult.user.id,
+        name: authResult.user.name,
+        username: authResult.user.username,
+        role: authResult.user.role,
+        permissions: authResult.user.permissions,
+        avatar: authResult.user.avatar,
+        lastLogin: authResult.user.metadata?.lastLogin
       }
     })
 

@@ -1,34 +1,34 @@
-// src/lib/models/user.js - User Model
+// src/lib/models/user.js - buildUserFilter FIXED
 
 import bcrypt from 'bcryptjs'
 
 // User Roles
 export const USER_ROLES = {
-  ADMIN: 'admin',      // Ana sahip - her şey
-  WAITER: 'waiter',    // Garson - siparişler
-  KITCHEN: 'kitchen',  // Mutfak - sipariş durumları (gelecekte)
-  CASHIER: 'cashier'   // Kasiyer - ödemeler (gelecekte)
+  ADMIN: 'admin',
+  WAITER: 'waiter',
+  KITCHEN: 'kitchen',
+  CASHIER: 'cashier'
 }
 
 // Role Permissions
 export const ROLE_PERMISSIONS = {
   [USER_ROLES.ADMIN]: [
-    'users.*',           // Kullanıcı yönetimi
-    'orders.*',          // Sipariş yönetimi
-    'menu.*',            // Menü yönetimi
-    'categories.*',      // Kategori yönetimi
-    'ingredients.*',     // Malzeme yönetimi
-    'tables.*',          // Masa yönetimi
-    'reports.*',         // Raporlar
-    'settings.*'         // Ayarlar
+    'users.*',
+    'orders.*',
+    'menu.*',
+    'categories.*',
+    'ingredients.*',
+    'tables.*',
+    'reports.*',
+    'settings.*'
   ],
   [USER_ROLES.WAITER]: [
-    'orders.view',       // Siparişleri görme
-    'orders.update',     // Sipariş durumu güncelleme
-    'orders.create',     // Sipariş alma (manuel)
-    'tables.view',       // Masaları görme
-    'tables.close',      // Masa kapatma
-    'menu.view'          // Menüyü görme
+    'orders.view',
+    'orders.update',
+    'orders.create',
+    'tables.view',
+    'tables.close',
+    'menu.view'
   ],
   [USER_ROLES.KITCHEN]: [
     'orders.view',
@@ -46,7 +46,6 @@ export const ROLE_PERMISSIONS = {
 export const validateUser = (data, isUpdate = false) => {
   const errors = []
   
-  // Name validation
   if (!data.name || data.name.trim().length < 2) {
     errors.push('Ad soyad en az 2 karakter olmalıdır')
   }
@@ -55,7 +54,6 @@ export const validateUser = (data, isUpdate = false) => {
     errors.push('Ad soyad 100 karakterden uzun olamaz')
   }
   
-  // Username validation
   if (!isUpdate && (!data.username || data.username.trim().length < 3)) {
     errors.push('Kullanıcı adı en az 3 karakter olmalıdır')
   }
@@ -68,12 +66,10 @@ export const validateUser = (data, isUpdate = false) => {
     errors.push('Kullanıcı adı sadece harf, rakam ve _ içerebilir')
   }
   
-  // Email validation (optional)
   if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
     errors.push('Geçersiz email formatı')
   }
   
-  // Password validation (for new users or password updates)
   if (!isUpdate && (!data.password || data.password.length < 4)) {
     errors.push('Şifre en az 4 karakter olmalıdır')
   }
@@ -82,12 +78,10 @@ export const validateUser = (data, isUpdate = false) => {
     errors.push('Şifre çok uzun')
   }
   
-  // Role validation
   if (!data.role || !Object.values(USER_ROLES).includes(data.role)) {
     errors.push('Geçersiz kullanıcı rolü')
   }
   
-  // Phone validation (optional)
   if (data.phone && !/^[\+]?[0-9\s\-\(\)]{10,}$/.test(data.phone)) {
     errors.push('Geçersiz telefon formatı')
   }
@@ -130,18 +124,15 @@ export const updateUser = (data) => {
     updatedAt: new Date()
   }
   
-  // Role değişirse permissions'ı güncelle
   if (data.role) {
     updateFields.role = data.role
     updateFields.permissions = ROLE_PERMISSIONS[data.role] || []
   }
   
-  // Şifre güncelleniyorsa
   if (data.password) {
     updateFields.password = bcrypt.hashSync(data.password, 12)
   }
   
-  // Undefined alanları temizle
   Object.keys(updateFields).forEach(key => {
     if (updateFields[key] === undefined) {
       delete updateFields[key]
@@ -151,19 +142,79 @@ export const updateUser = (data) => {
   return updateFields
 }
 
-// Check permission
+// ✅ FIXED: User filtering helpers
+export const buildUserFilter = (params) => {
+  const filter = {}
+  
+  console.log('🔧 buildUserFilter params:', params)
+  
+  // Role filtering
+  if (params.role && params.role !== 'all') {
+    filter.role = params.role
+  }
+  
+  // ✅ FIX: Active status filtering - sadece açıkça belirtilmişse filtrele
+  if (params.isActive === 'true') {
+    filter.isActive = true
+  } else if (params.isActive === 'false') {
+    filter.isActive = false
+  }
+  // ✅ isActive parametresi yoksa veya 'all' ise, filtre EKLEME (tüm kullanıcıları getir)
+  
+  // Search filtering
+  if (params.search) {
+    filter.$or = [
+      { name: { $regex: params.search, $options: 'i' } },
+      { username: { $regex: params.search, $options: 'i' } },
+      { email: { $regex: params.search, $options: 'i' } }
+    ]
+  }
+  
+  console.log('🔧 buildUserFilter result:', filter)
+  
+  return filter
+}
+
+// User sorting helpers
+export const buildUserSort = (sortBy = 'createdAt', sortOrder = 'desc') => {
+  const sort = {}
+  
+  switch (sortBy) {
+    case 'name':
+      sort.name = sortOrder === 'desc' ? -1 : 1
+      break
+    case 'username':
+      sort.username = sortOrder === 'desc' ? -1 : 1
+      break
+    case 'role':
+      sort.role = sortOrder === 'desc' ? -1 : 1
+      sort.name = 1
+      break
+    case 'lastLogin':
+      sort['metadata.lastLogin'] = sortOrder === 'desc' ? -1 : 1
+      break
+    case 'isActive':
+      sort.isActive = sortOrder === 'desc' ? -1 : 1
+      sort.name = 1
+      break
+    default:
+      sort.createdAt = sortOrder === 'desc' ? -1 : 1
+  }
+  
+  return sort
+}
+
+// Check if user has permission
 export const hasPermission = (userPermissions, requiredPermission) => {
   if (!userPermissions || !Array.isArray(userPermissions)) {
     return false
   }
   
-  // Wildcard permission check (admin.* covers admin.create, admin.read, etc.)
   return userPermissions.some(permission => {
     if (permission === requiredPermission) {
       return true
     }
     
-    // Wildcard check
     if (permission.endsWith('.*')) {
       const basePermission = permission.slice(0, -2)
       return requiredPermission.startsWith(basePermission + '.')
@@ -195,61 +246,6 @@ export const getRoleColor = (role) => {
   }
   
   return roleColors[role] || 'bg-gray-100 text-gray-800'
-}
-
-// User filtering helpers
-export const buildUserFilter = (params) => {
-  const filter = {}
-  
-  // Role filtering
-  if (params.role) {
-    filter.role = params.role
-  }
-  
-  // Active status filtering
-  if (params.isActive !== undefined) {
-    filter.isActive = params.isActive === 'true'
-  }
-  
-  // Search filtering
-  if (params.search) {
-    filter.$or = [
-      { name: { $regex: params.search, $options: 'i' } },
-      { username: { $regex: params.search, $options: 'i' } },
-      { email: { $regex: params.search, $options: 'i' } }
-    ]
-  }
-  
-  return filter
-}
-
-// User sorting helpers
-export const buildUserSort = (sortBy = 'createdAt', sortOrder = 'desc') => {
-  const sort = {}
-  
-  switch (sortBy) {
-    case 'name':
-      sort.name = sortOrder === 'desc' ? -1 : 1
-      break
-    case 'username':
-      sort.username = sortOrder === 'desc' ? -1 : 1
-      break
-    case 'role':
-      sort.role = sortOrder === 'desc' ? -1 : 1
-      sort.name = 1 // Secondary sort
-      break
-    case 'lastLogin':
-      sort['metadata.lastLogin'] = sortOrder === 'desc' ? -1 : 1
-      break
-    case 'isActive':
-      sort.isActive = sortOrder === 'desc' ? -1 : 1
-      sort.name = 1 // Secondary sort
-      break
-    default:
-      sort.createdAt = sortOrder === 'desc' ? -1 : 1
-  }
-  
-  return sort
 }
 
 // Password validation
