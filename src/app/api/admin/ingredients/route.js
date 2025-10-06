@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import clientPromise from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
-import { createIngredient, validateIngredient } from '@/lib/models/category'
+import { createIngredient, validateIngredient } from '@/lib/models/ingredient'
 
 // GET - Tüm malzemeleri getir
 export async function GET() {

@@ -1,617 +1,661 @@
-// src/app/admin/orders/page.js - Güncellenmiş Siparişler Sayfası
 'use client'
-
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  Clock, 
-  DollarSign, 
-  ShoppingBag, 
-  Users,
-  Eye,
-  X,
-  CheckCircle,
-  ChefHat,
-  Utensils,
-  MapPin,
-  Calendar,
-  Hash,
-  Minus,
-  Plus,
-  Info,
-  Star,
-  Search,
-  RefreshCw
+  Clock, User, CreditCard, Filter, Search, MoreVertical,
+  CheckCircle, XCircle, AlertCircle, Package, ChefHat,
+  Eye, Edit2, Trash2, RefreshCw, Calendar, DollarSign,
+  TrendingUp, Users, ShoppingCart, BarChart3, MapPin
 } from 'lucide-react'
-import { toast } from 'react-hot-toast'
+import toast from 'react-hot-toast'
 
-const statusConfig = {
-  pending: { 
-    label: 'Bekliyor', 
-    color: 'yellow', 
-    icon: Clock,
-    bgColor: 'bg-yellow-50',
-    textColor: 'text-yellow-800',
-    borderColor: 'border-yellow-200'
-  },
-  preparing: { 
-    label: 'Hazırlanıyor', 
-    color: 'blue', 
-    icon: ChefHat,
-    bgColor: 'bg-blue-50',
-    textColor: 'text-blue-800',
-    borderColor: 'border-blue-200'
-  },
-  ready: { 
-    label: 'Hazır', 
-    color: 'green', 
-    icon: CheckCircle,
-    bgColor: 'bg-green-50',
-    textColor: 'text-green-800',
-    borderColor: 'border-green-200'
-  },
-  delivered: { 
-    label: 'Teslim', 
-    color: 'purple', 
-    icon: Utensils,
-    bgColor: 'bg-purple-50',
-    textColor: 'text-purple-800',
-    borderColor: 'border-purple-200'
-  },
-  completed: { 
-    label: 'Tamamlandı', 
-    color: 'gray', 
-    icon: CheckCircle,
-    bgColor: 'bg-gray-50',
-    textColor: 'text-gray-800',
-    borderColor: 'border-gray-200'
-  }
-}
-
-export default function OrdersPage() {
+export default function OrdersAdminPage() {
+  // States
   const [orders, setOrders] = useState([])
-  const [tables, setTables] = useState([])
-  const [stats, setStats] = useState({})
-  const [selectedOrder, setSelectedOrder] = useState(null)
+  const [filteredOrders, setFilteredOrders] = useState([])
+  const [statistics, setStatistics] = useState(null)
+  const [analytics, setAnalytics] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('all')
-  const [searchTerm, setSearchTerm] = useState('')
+  const [refreshing, setRefreshing] = useState(false)
+  
+  // Filter states
+  const [filters, setFilters] = useState({
+    status: '',
+    tableNumber: '',
+    paymentStatus: '',
+    priority: '',
+    today: true,
+    search: ''
+  })
+  
+  // Modal states
+  const [selectedOrder, setSelectedOrder] = useState(null)
+  const [showOrderModal, setShowOrderModal] = useState(false)
+  const [showKitchenView, setShowKitchenView] = useState(false)
+  
+  // View states
+  const [viewMode, setViewMode] = useState('all') // 'all', 'kitchen', 'analytics'
+  const [sortBy, setSortBy] = useState('createdAt')
+  const [sortOrder, setSortOrder] = useState('desc')
+
+  // Order statuses for filtering
+  const orderStatuses = [
+    { value: '', label: 'Tüm Durumlar', color: 'gray' },
+    { value: 'pending', label: 'Bekliyor', color: 'yellow' },
+    { value: 'confirmed', label: 'Onaylandı', color: 'blue' },
+    { value: 'preparing', label: 'Hazırlanıyor', color: 'orange' },
+    { value: 'ready', label: 'Hazır', color: 'green' },
+    { value: 'delivered', label: 'Teslim Edildi', color: 'purple' },
+    { value: 'completed', label: 'Tamamlandı', color: 'gray' },
+    { value: 'cancelled', label: 'İptal Edildi', color: 'red' }
+  ]
+
+  const priorities = [
+    { value: '', label: 'Tüm Öncelikler' },
+    { value: 'low', label: 'Düşük' },
+    { value: 'normal', label: 'Normal' },
+    { value: 'high', label: 'Yüksek' },
+    { value: 'urgent', label: 'Acil' }
+  ]
 
   useEffect(() => {
-    fetchData()
-    const interval = setInterval(fetchData, 30000) // 30 saniyede bir güncelle
+    loadOrders()
+    // Auto refresh every 30 seconds
+    const interval = setInterval(loadOrders, 30000)
     return () => clearInterval(interval)
-  }, [])
+  }, [filters, sortBy, sortOrder, viewMode])
 
-  const fetchData = async () => {
+  const loadOrders = async () => {
     try {
-      setLoading(true)
+      if (!refreshing) setLoading(true)
       
-      // Orders ve stats verilerini getir
-      const ordersResponse = await fetch('/api/orders?stats=true')
-      const ordersData = await ordersResponse.json()
-      
-      // Tables verilerini getir
-      const tablesResponse = await fetch('/api/admin/tables')
-      const tablesData = await tablesResponse.json()
-      
-      if (ordersData.success) {
-        setOrders(ordersData.orders || [])
-        setStats(ordersData.stats || {})
+      const params = new URLSearchParams({
+        stats: 'true',
+        analytics: viewMode === 'analytics' ? 'true' : 'false',
+        kitchenView: viewMode === 'kitchen' ? 'true' : 'false',
+        sortBy,
+        sortOrder,
+        limit: '50'
+      })
+
+      // Add filters
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value && value !== '') {
+          params.append(key, value.toString())
+        }
+      })
+
+      const response = await fetch(`/api/orders?${params}`)
+      const data = await response.json()
+
+      if (data.success) {
+        setOrders(data.orders || [])
+        setStatistics(data.statistics)
+        if (data.analytics) {
+          setAnalytics(data.analytics)
+        }
       } else {
-        console.error('Orders fetch error:', ordersData.error)
-        setOrders([])
-        setStats({})
+        toast.error('Siparişler yüklenemedi')
       }
-      
-      if (Array.isArray(tablesData)) {
-        setTables(tablesData)
-      } else {
-        console.error('Tables fetch error:', tablesData)
-        setTables([])
-      }
-      
     } catch (error) {
-      console.error('Fetch error:', error)
-      toast.error('Veriler yüklenirken hata oluştu')
-      setOrders([])
-      setTables([])
-      setStats({})
+      console.error('Orders loading error:', error)
+      toast.error('Bağlantı hatası')
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }
 
-  const updateOrderStatus = async (orderId, newStatus) => {
+  const handleRefresh = () => {
+    setRefreshing(true)
+    loadOrders()
+  }
+
+  const updateOrderStatus = async (orderId, newStatus, assignedStaff = null) => {
     try {
       const response = await fetch('/api/orders', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, status: newStatus })
+        body: JSON.stringify({
+          id: orderId,
+          action: 'updateStatus',
+          status: newStatus,
+          assignedStaff
+        })
       })
-      
-      const data = await response.json()
-      if (data.success) {
-        await fetchData()
+
+      const result = await response.json()
+
+      if (result.success) {
+        await loadOrders()
         toast.success('Sipariş durumu güncellendi')
-        // Modal'daki siparişi de güncelle
-        if (selectedOrder?._id === orderId) {
-          setSelectedOrder(prev => ({ ...prev, status: newStatus }))
-        }
       } else {
-        toast.error(data.error || 'Durum güncellenemedi')
+        toast.error(result.error || 'Güncelleme başarısız')
       }
     } catch (error) {
       console.error('Status update error:', error)
-      toast.error('Durum güncellenemedi')
+      toast.error('Güncelleme hatası')
     }
   }
 
-  const closeTable = async (tableNumber) => {
-    if (!confirm(`Masa ${tableNumber} kapatılacak. Emin misiniz?`)) {
-      return
-    }
+  const cancelOrder = async (orderId) => {
+    if (!confirm('Bu siparişi iptal etmek istediğinizden emin misiniz?')) return
 
     try {
-      const response = await fetch('/api/orders', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          tableNumber, 
-          action: 'closeTable' 
-        })
+      const response = await fetch(`/api/orders?id=${orderId}`, {
+        method: 'DELETE'
       })
-      
-      const data = await response.json()
-      if (data.success) {
-        await fetchData()
-        toast.success(`Masa ${tableNumber} kapatıldı`)
+
+      const result = await response.json()
+
+      if (result.success) {
+        await loadOrders()
+        toast.success('Sipariş iptal edildi')
       } else {
-        toast.error(data.error || 'Masa kapatılamadı')
+        toast.error(result.error || 'İptal işlemi başarısız')
       }
     } catch (error) {
-      console.error('Close table error:', error)
-      toast.error('Masa kapatılamadı')
+      console.error('Cancel order error:', error)
+      toast.error('İptal işlemi hatası')
     }
   }
 
-  // Filtreleme
-  const filteredOrders = orders.filter(order => {
-    if (filter !== 'all' && order.status !== filter) return false
-    if (searchTerm && !order.tableNumber.toString().includes(searchTerm)) return false
-    return true
-  })
+  const getStatusColor = (status) => {
+    const statusObj = orderStatuses.find(s => s.value === status)
+    return statusObj ? statusObj.color : 'gray'
+  }
 
-  // Masa bazında grupla
-  const ordersByTable = filteredOrders.reduce((acc, order) => {
-    const key = order.tableNumber
-    if (!acc[key]) acc[key] = []
-    acc[key].push(order)
-    return acc
-  }, {})
+  const getStatusLabel = (status) => {
+    const statusObj = orderStatuses.find(s => s.value === status)
+    return statusObj ? statusObj.label : status
+  }
 
-  if (loading) {
+  const formatCurrency = (amount) => {
+    return `₺${parseFloat(amount || 0).toFixed(2)}`
+  }
+
+  const formatDuration = (minutes) => {
+    if (minutes < 60) return `${minutes}dk`
+    const hours = Math.floor(minutes / 60)
+    const mins = minutes % 60
+    return `${hours}s ${mins}dk`
+  }
+
+  if (loading && !refreshing) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full"
-        />
+      <div className="p-6 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-amber-200 border-t-amber-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Siparişler yükleniyor...</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Aktif Siparişler</p>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.activeOrders || 0}</p>
-              </div>
-              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <ShoppingBag className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Günlük Ciro</p>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900">₺{stats.dailyRevenue || 0}</p>
-              </div>
-              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Ortalama Tutar</p>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900">₺{stats.averageOrder || 0}</p>
-              </div>
-              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <Users className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Aktif Masalar</p>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{Object.keys(ordersByTable).length}</p>
-              </div>
-              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                <Utensils className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600" />
-              </div>
-            </div>
-          </motion.div>
+    <div className="p-6 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
+            Sipariş Yönetimi
+          </h1>
+          <p className="text-gray-600 mt-2">Siparişleri takip edin ve yönetin</p>
         </div>
+        
+        <div className="flex items-center space-x-3">
+          {/* View Mode Buttons */}
+          <div className="bg-white border border-gray-200 rounded-lg p-1">
+            {[
+              { id: 'all', label: 'Tümü', icon: ShoppingCart },
+              { id: 'kitchen', label: 'Mutfak', icon: ChefHat },
+              { id: 'analytics', label: 'Analiz', icon: BarChart3 }
+            ].map(mode => {
+              const Icon = mode.icon
+              return (
+                <button
+                  key={mode.id}
+                  onClick={() => setViewMode(mode.id)}
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-colors ${
+                    viewMode === mode.id
+                      ? 'bg-amber-500 text-white'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="font-medium">{mode.label}</span>
+                </button>
+              )
+            })}
+          </div>
 
-        {/* Filters & Search */}
-        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Masa numarası ara..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+          {/* Refresh Button */}
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={handleRefresh}
+            className="p-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            disabled={refreshing}
+          >
+            <RefreshCw className={`w-5 h-5 text-gray-600 ${refreshing ? 'animate-spin' : ''}`} />
+          </motion.button>
+        </div>
+      </div>
+
+      {/* Statistics Cards */}
+      {statistics && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 text-sm font-medium">Aktif Siparişler</p>
+                <p className="text-3xl font-bold text-amber-600">
+                  {(statistics.pending || 0) + (statistics.preparing || 0) + (statistics.ready || 0)}
+                </p>
+              </div>
+              <div className="bg-amber-100 p-3 rounded-lg">
+                <Clock className="w-6 h-6 text-amber-600" />
+              </div>
             </div>
+          </div>
 
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="all">Tüm Durumlar</option>
-              {Object.entries(statusConfig).map(([key, config]) => (
-                <option key={key} value={key}>{config.label}</option>
-              ))}
-            </select>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 text-sm font-medium">Toplam Sipariş</p>
+                <p className="text-3xl font-bold text-blue-600">{statistics.total}</p>
+              </div>
+              <div className="bg-blue-100 p-3 rounded-lg">
+                <ShoppingCart className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
+          </div>
 
-            <button
-              onClick={fetchData}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span className="hidden sm:inline">Yenile</span>
-            </button>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 text-sm font-medium">Günlük Ciro</p>
+                <p className="text-3xl font-bold text-green-600">
+                  {formatCurrency(statistics.totalRevenue)}
+                </p>
+              </div>
+              <div className="bg-green-100 p-3 rounded-lg">
+                <DollarSign className="w-6 h-6 text-green-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 text-sm font-medium">Ort. Sipariş</p>
+                <p className="text-3xl font-bold text-purple-600">
+                  {formatCurrency(statistics.averageOrderValue)}
+                </p>
+              </div>
+              <div className="bg-purple-100 p-3 rounded-lg">
+                <TrendingUp className="w-6 h-6 text-purple-600" />
+              </div>
+            </div>
           </div>
         </div>
+      )}
 
-        {/* Orders by Table */}
-        <div className="space-y-6">
-          {Object.entries(ordersByTable).map(([tableNumber, tableOrders]) => (
+      {/* Filters */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <input
+              type="text"
+              placeholder="Sipariş ara..."
+              value={filters.search}
+              onChange={(e) => setFilters({...filters, search: e.target.value})}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            />
+          </div>
+
+          {/* Status Filter */}
+          <select
+            value={filters.status}
+            onChange={(e) => setFilters({...filters, status: e.target.value})}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+          >
+            {orderStatuses.map(status => (
+              <option key={status.value} value={status.value}>
+                {status.label}
+              </option>
+            ))}
+          </select>
+
+          {/* Table Filter */}
+          <input
+            type="number"
+            placeholder="Masa No"
+            value={filters.tableNumber}
+            onChange={(e) => setFilters({...filters, tableNumber: e.target.value})}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+          />
+
+          {/* Priority Filter */}
+          <select
+            value={filters.priority}
+            onChange={(e) => setFilters({...filters, priority: e.target.value})}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+          >
+            {priorities.map(priority => (
+              <option key={priority.value} value={priority.value}>
+                {priority.label}
+              </option>
+            ))}
+          </select>
+
+          {/* Today Filter */}
+          <label className="flex items-center space-x-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={filters.today}
+              onChange={(e) => setFilters({...filters, today: e.target.checked})}
+              className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+            />
+            <span className="text-sm text-gray-700">Sadece Bugün</span>
+          </label>
+
+          {/* Clear Filters */}
+          <button
+            onClick={() => setFilters({
+              status: '', tableNumber: '', paymentStatus: '', priority: '', today: true, search: ''
+            })}
+            className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Temizle
+          </button>
+        </div>
+      </div>
+
+      {/* Orders List */}
+      <div className="space-y-4">
+        {orders.length === 0 ? (
+          <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
+            <ShoppingCart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Sipariş bulunamadı</h3>
+            <p className="text-gray-600">Seçilen kriterlere uygun sipariş yok</p>
+          </div>
+        ) : (
+          orders.map((order, index) => (
             <motion.div
-              key={tableNumber}
+              key={order.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"
+              transition={{ duration: 0.3, delay: index * 0.05 }}
+              className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200"
             >
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-100">
-                <div className="flex items-center space-x-3 mb-4 sm:mb-0">
-                  <div className="w-10 h-10 bg-blue-600 text-white rounded-lg flex items-center justify-center font-bold">
-                    {tableNumber}
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900">Masa {tableNumber}</h3>
-                    <p className="text-sm text-gray-600">{tableOrders.length} sipariş</p>
-                  </div>
-                </div>
-                
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                    Toplam: ₺{tableOrders.reduce((sum, order) => sum + order.totalAmount, 0).toFixed(2)}
-                  </div>
-                  <button
-                    onClick={() => closeTable(tableNumber)}
-                    className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
-                  >
-                    Masayı Kapat
-                  </button>
-                </div>
-              </div>
-
-              <div className="divide-y divide-gray-100">
-                {tableOrders.map((order) => {
-                  const config = statusConfig[order.status]
-                  const StatusIcon = config.icon
-                  
-                  return (
-                    <div key={order._id} className="p-4 sm:p-6">
-                      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-                        <div className="flex-1 space-y-3">
-                          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                            <div className={`
-                              inline-flex items-center space-x-2 px-3 py-1 rounded-full text-sm font-medium
-                              ${config.bgColor} ${config.textColor} ${config.borderColor} border
-                            `}>
-                              <StatusIcon className="w-4 h-4" />
-                              <span>{config.label}</span>
-                            </div>
-                            <span className="text-sm text-gray-500">
-                              {new Date(order.createdAt).toLocaleTimeString('tr-TR')}
-                            </span>
-                            <span className="text-lg font-bold text-gray-900">
-                              ₺{order.totalAmount}
-                            </span>
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-2">
-                            {order.items.slice(0, 3).map((item, index) => (
-                              <div key={index} className="inline-flex items-center space-x-2 px-3 py-1 bg-gray-100 rounded-lg text-sm">
-                                <span className="font-medium">{item.name}</span>
-                                <span className="text-gray-500">x{item.quantity}</span>
-                              </div>
-                            ))}
-                            {order.items.length > 3 && (
-                              <div className="px-3 py-1 bg-gray-200 rounded-lg text-sm text-gray-600">
-                                +{order.items.length - 3} daha
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                          <button
-                            onClick={() => setSelectedOrder(order)}
-                            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
-                          >
-                            <Eye className="w-4 h-4" />
-                            <span className="text-sm font-medium">Detay</span>
-                          </button>
-
-                          <select
-                            value={order.status}
-                            onChange={(e) => updateOrderStatus(order._id, e.target.value)}
-                            className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          >
-                            {Object.entries(statusConfig).map(([key, config]) => (
-                              <option key={key} value={key}>{config.label}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  {/* Order Header */}
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-2">
+                      <h3 className="text-lg font-bold text-gray-900">
+                        #{order.orderNumber || order.id?.slice(-6)}
+                      </h3>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium bg-${getStatusColor(order.status)}-100 text-${getStatusColor(order.status)}-800`}>
+                        {getStatusLabel(order.status)}
+                      </span>
+                      {order.priority && order.priority !== 'normal' && (
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          order.priority === 'urgent' ? 'bg-red-100 text-red-800' :
+                          order.priority === 'high' ? 'bg-orange-100 text-orange-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {priorities.find(p => p.value === order.priority)?.label}
+                        </span>
+                      )}
                     </div>
-                  )
-                })}
+                  </div>
+
+                  {/* Order Actions */}
+                  <div className="flex items-center space-x-2">
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-gray-900">
+                        {formatCurrency(order.totalAmount)}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {order.duration ? formatDuration(order.duration) : '-'}
+                      </p>
+                    </div>
+                    
+                    <div className="flex items-center space-x-1">
+                      {/* Quick Status Updates */}
+                      {order.status === 'pending' && (
+                        <button
+                          onClick={() => updateOrderStatus(order.id, 'confirmed')}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Onayla"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                        </button>
+                      )}
+                      
+                      {order.status === 'confirmed' && (
+                        <button
+                          onClick={() => updateOrderStatus(order.id, 'preparing')}
+                          className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                          title="Hazırlanmaya Başla"
+                        >
+                          <ChefHat className="w-4 h-4" />
+                        </button>
+                      )}
+                      
+                      {order.status === 'preparing' && (
+                        <button
+                          onClick={() => updateOrderStatus(order.id, 'ready')}
+                          className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                          title="Hazır"
+                        >
+                          <Package className="w-4 h-4" />
+                        </button>
+                      )}
+                      
+                      {order.status === 'ready' && (
+                        <button
+                          onClick={() => updateOrderStatus(order.id, 'delivered')}
+                          className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                          title="Teslim Et"
+                        >
+                          <User className="w-4 h-4" />
+                        </button>
+                      )}
+
+                      {/* View Details */}
+                      <button
+                        onClick={() => {
+                          setSelectedOrder(order)
+                          setShowOrderModal(true)
+                        }}
+                        className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+                        title="Detayları Gör"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+
+                      {/* Cancel Order */}
+                      {['pending', 'confirmed'].includes(order.status) && (
+                        <button
+                          onClick={() => cancelOrder(order.id)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="İptal Et"
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Order Details */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Table Info */}
+                  <div className="flex items-center space-x-2 text-gray-600">
+                    <MapPin className="w-4 h-4" />
+                    <span className="text-sm">
+                      Masa {order.tableNumber || order.tableId}
+                    </span>
+                  </div>
+
+                  {/* Time Info */}
+                  <div className="flex items-center space-x-2 text-gray-600">
+                    <Clock className="w-4 h-4" />
+                    <span className="text-sm">
+                      {new Date(order.createdAt).toLocaleTimeString('tr-TR', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </span>
+                  </div>
+
+                  {/* Staff Info */}
+                  {order.assignedStaff && (
+                    <div className="flex items-center space-x-2 text-gray-600">
+                      <User className="w-4 h-4" />
+                      <span className="text-sm">{order.assignedStaff}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Order Items Preview */}
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-600">
+                      {order.items?.length} ürün: {' '}
+                      {order.items?.slice(0, 3).map(item => item.name).join(', ')}
+                      {order.items?.length > 3 && ` +${order.items.length - 3} daha`}
+                    </div>
+                    
+                    {order.customerNotes && (
+                      <div className="text-sm text-orange-600 italic">
+                        "{order.customerNotes}"
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </motion.div>
-          ))}
-        </div>
-
-        {filteredOrders.length === 0 && (
-          <div className="bg-white rounded-xl p-12 text-center">
-            <ShoppingBag className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">Sipariş bulunamadı</h3>
-            <p className="text-gray-600">Henüz sipariş bulunmamaktadır.</p>
-          </div>
+          ))
         )}
       </div>
 
       {/* Order Detail Modal */}
-      <OrderDetailModal 
-        order={selectedOrder} 
-        onClose={() => setSelectedOrder(null)}
-        onStatusUpdate={updateOrderStatus}
-      />
-    </div>
-  )
-}
-
-// Order Detail Modal
-function OrderDetailModal({ order, onClose, onStatusUpdate }) {
-  if (!order) return null
-
-  const config = statusConfig[order.status]
-  const StatusIcon = config.icon
-
-  return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-        onClick={onClose}
-      >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.9, y: 20 }}
-          onClick={(e) => e.stopPropagation()}
-          className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden"
-        >
-          {/* Header */}
-          <div className="relative bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 p-2 rounded-lg bg-white/20 hover:bg-white/30 transition-colors"
+      <AnimatePresence>
+        {showOrderModal && selectedOrder && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+            onClick={() => setShowOrderModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
             >
-              <X className="w-5 h-5" />
-            </button>
-            
-            <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center">
-                <Utensils className="w-8 h-8" />
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold">
+                    Sipariş #{selectedOrder.orderNumber || selectedOrder.id?.slice(-6)}
+                  </h2>
+                  <button
+                    onClick={() => setShowOrderModal(false)}
+                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                  >
+                    <XCircle className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
-              <div>
-                <h2 className="text-2xl font-bold">Sipariş Detayı</h2>
-                <p className="text-blue-100">Masa {order.tableNumber}</p>
-              </div>
-            </div>
-          </div>
 
-          {/* Content */}
-          <div className="overflow-y-auto max-h-[calc(90vh-200px)]">
-            {/* Order Info */}
-            <div className="p-6 border-b border-gray-100">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                <div className="flex items-center space-x-3">
-                  <Calendar className="w-5 h-5 text-gray-400" />
+              {/* Modal Content */}
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+                {/* Order Info */}
+                <div className="grid grid-cols-2 gap-4 mb-6">
                   <div>
-                    <p className="text-sm text-gray-500">Tarih & Saat</p>
-                    <p className="font-semibold text-gray-900">
-                      {new Date(order.createdAt).toLocaleString('tr-TR')}
+                    <p className="text-sm text-gray-600">Masa</p>
+                    <p className="font-semibold">{selectedOrder.tableNumber || selectedOrder.tableId}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Durum</p>
+                    <p className="font-semibold">{getStatusLabel(selectedOrder.status)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Toplam</p>
+                    <p className="font-semibold">{formatCurrency(selectedOrder.totalAmount)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Süre</p>
+                    <p className="font-semibold">
+                      {selectedOrder.duration ? formatDuration(selectedOrder.duration) : '-'}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-3">
-                  <DollarSign className="w-5 h-5 text-gray-400" />
-                  <div>
-                    <p className="text-sm text-gray-500">Toplam</p>
-                    <p className="font-semibold text-gray-900">₺{order.totalAmount}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <span className="text-sm font-medium text-gray-700">Durum:</span>
-                  <div className={`
-                    inline-flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium
-                    ${config.bgColor} ${config.textColor} ${config.borderColor} border
-                  `}>
-                    <StatusIcon className="w-4 h-4" />
-                    <span>{config.label}</span>
-                  </div>
-                </div>
-                
-                <select
-                  value={order.status}
-                  onChange={(e) => onStatusUpdate(order._id, e.target.value)}
-                  className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  {Object.entries(statusConfig).map(([key, config]) => (
-                    <option key={key} value={key}>{config.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {order.customerNotes && (
-                <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <div className="flex items-start space-x-3">
-                    <Info className="w-5 h-5 text-yellow-600 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-yellow-800">Müşteri Notu:</p>
-                      <p className="text-sm text-yellow-700 mt-1">{order.customerNotes}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Order Items */}
-            <div className="p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">Sipariş İçeriği</h3>
-              <div className="space-y-4">
-                {order.items.map((item, index) => (
-                  <div key={index} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                    <div className="flex items-start justify-between mb-2">
-                      <h4 className="font-semibold text-gray-900">{item.name}</h4>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm text-gray-500">x{item.quantity}</span>
-                        <span className="font-bold text-gray-900">₺{(item.price * item.quantity).toFixed(2)}</span>
+                {/* Order Items */}
+                <div className="mb-6">
+                  <h3 className="font-semibold text-gray-900 mb-3">Sipariş Detayları</h3>
+                  <div className="space-y-3">
+                    {selectedOrder.items?.map((item, index) => (
+                      <div key={index} className="flex justify-between items-start p-3 bg-gray-50 rounded-lg">
+                        <div className="flex-1">
+                          <p className="font-medium">{item.name}</p>
+                          <p className="text-sm text-gray-600">Adet: {item.quantity}</p>
+                          {item.notes && (
+                            <p className="text-sm text-orange-600 italic mt-1">"{item.notes}"</p>
+                          )}
+                        </div>
+                        <p className="font-semibold">
+                          {formatCurrency(item.price * item.quantity)}
+                        </p>
                       </div>
-                    </div>
-
-                    {/* Customizations */}
-                    {item.customizations && (
-                      <div className="space-y-2 mt-3">
-                        {item.customizations.removed && item.customizations.removed.length > 0 && (
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded-full">
-                              Çıkarılan:
-                            </span>
-                            {item.customizations.removed.map((ingredient, idx) => (
-                              <div key={idx} className="flex items-center space-x-1 bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs">
-                                <Minus className="w-3 h-3" />
-                                <span>{ingredient.name}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {item.customizations.extras && item.customizations.extras.length > 0 && (
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                              Eklenen:
-                            </span>
-                            {item.customizations.extras.map((extra, idx) => (
-                              <div key={idx} className="flex items-center space-x-1 bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
-                                <Plus className="w-3 h-3" />
-                                <span>{extra.ingredient.name}</span>
-                                {extra.price > 0 && (
-                                  <span className="font-semibold">+₺{extra.price}</span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 border border-blue-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg flex items-center justify-center">
-                        <Star className="w-5 h-5" />
-                      </div>
-                      <span className="text-lg font-semibold text-gray-900">Genel Toplam</span>
-                    </div>
-                    <span className="text-2xl font-bold text-gray-900">₺{order.totalAmount}</span>
+                    ))}
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
 
-          <div className="border-t border-gray-200 p-6 bg-gray-50">
-            <button
-              onClick={onClose}
-              className="w-full px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 transition-colors font-medium"
-            >
-              Kapat
-            </button>
-          </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+                {/* Notes */}
+                {selectedOrder.customerNotes && (
+                  <div className="mb-6">
+                    <h3 className="font-semibold text-gray-900 mb-2">Müşteri Notları</h3>
+                    <p className="text-gray-700 bg-gray-50 p-3 rounded-lg italic">
+                      "{selectedOrder.customerNotes}"
+                    </p>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => setShowOrderModal(false)}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Kapat
+                  </button>
+                  {['pending', 'confirmed'].includes(selectedOrder.status) && (
+                    <button
+                      onClick={() => {
+                        cancelOrder(selectedOrder.id)
+                        setShowOrderModal(false)
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      İptal Et
+                    </button>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   )
 }

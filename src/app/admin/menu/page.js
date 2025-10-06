@@ -2,43 +2,45 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  Plus, Edit, Trash2, Save, X, Loader2, Tag, Leaf, 
-  Clock, Flame, Star, Package, ChefHat, Info, AlertTriangle
+  Plus, Edit2, Trash2, Eye, EyeOff, Search, Filter,
+  ChefHat, Clock, Flame, Star, Package, Image as ImageIcon,
+  X, Save, AlertCircle, Tag, Utensils, ShoppingCart
 } from 'lucide-react'
+import Image from 'next/image'
 import toast from 'react-hot-toast'
 import ImageUpload from '@/components/ImageUpload'
-
+import { ingredientCategories } from '@/lib/models/ingredient'
 
 export default function AdminMenuPage() {
+  // States
   const [menuItems, setMenuItems] = useState([])
   const [categories, setCategories] = useState([])
+  const [flatCategories, setFlatCategories] = useState([])
   const [ingredients, setIngredients] = useState([])
   const [loading, setLoading] = useState(true)
-  const [showAddForm, setShowAddForm] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [filterCategory, setFilterCategory] = useState('')
+  const [filterSubcategory, setFilterSubcategory] = useState('')
+  
+  // Modal states
+  const [showModal, setShowModal] = useState(false)
+  const [modalMode, setModalMode] = useState('add') // 'add', 'edit'
   const [editingItem, setEditingItem] = useState(null)
-  const [activeTab, setActiveTab] = useState('basic') // basic, ingredients, customization, nutrition
-
+  const [activeTab, setActiveTab] = useState('basic')
+  
+  // Form state
   const [formData, setFormData] = useState({
-    // Temel Bilgiler
     name: '',
     description: '',
-    slug: '',
     price: '',
     categoryId: '',
+    subcategoryId: '',
     image: null,
-    
-    // Malzemeler
     ingredients: [],
-    
-    // Özelleştirmeler
     customizations: {
-      removable: [], // Çıkarılabilir malzemeler
-      extras: [], // Ekstra malzemeler {ingredientId, price}
-      sizes: [], // Boyutlar {name, priceMultiplier}
-      options: [] // Diğer seçenekler {name, choices: [{name, price}]}
+      removable: [],
+      extras: []
     },
-    
-    // Beslenme ve Diyet
     nutritionInfo: {
       calories: '',
       protein: '',
@@ -47,767 +49,866 @@ export default function AdminMenuPage() {
     },
     allergens: [],
     dietaryInfo: {
-      isVegetarian: false,
       isVegan: false,
+      isVegetarian: false,
       isGlutenFree: false,
-      isHalal: false
+      isKeto: false,
+      isLowCarb: false
     },
-    
-    // Diğer
     cookingTime: '',
     spicyLevel: 0,
-    featured: false,
+    sortOrder: 0,
     available: true,
-    sortOrder: 0
+    featured: false
   })
 
-  const allergenOptions = [
-    'gluten', 'dairy', 'eggs', 'nuts', 'peanuts', 'soy', 'fish', 'shellfish', 'sesame'
+  const tabs = [
+    { id: 'basic', label: 'Temel Bilgiler', icon: Package },
+    { id: 'ingredients', label: 'Malzemeler', icon: ChefHat },
+    { id: 'customization', label: 'Özelleştirme', icon: Utensils },
+    { id: 'nutrition', label: 'Beslenme & Diyet', icon: Tag }
   ]
 
-  const ingredientCategories = [
-    'meat', 'dairy', 'vegetable', 'fruit', 'grain', 'spice', 'sauce', 'other'
+  const allergenOptions = [
+    'gluten', 'dairy', 'eggs', 'nuts', 'peanuts', 'shellfish', 'fish', 'soy', 'sesame'
+  ]
+
+  const spicyLevels = [
+    { value: 0, label: 'Acısız', color: 'text-gray-500' },
+    { value: 1, label: 'Hafif Acı', color: 'text-yellow-500' },
+    { value: 2, label: 'Orta Acı', color: 'text-orange-500' },
+    { value: 3, label: 'Acı', color: 'text-red-500' },
+    { value: 4, label: 'Çok Acı', color: 'text-red-600' },
+    { value: 5, label: 'Ekstrem Acı', color: 'text-red-800' }
   ]
 
   useEffect(() => {
-    Promise.all([
-      fetchMenuItems(),
-      fetchCategories(),
-      fetchIngredients()
-    ])
+    loadData()
   }, [])
 
-  const fetchMenuItems = async () => {
+  const loadData = async () => {
     try {
-      const response = await fetch('/api/admin/menu')
-      const data = await response.json()
-      if (data.success) {
-        setMenuItems(data.items)
-      }
-    } catch (error) {
-      console.error('Error fetching menu items:', error)
-    }
-  }
+      setLoading(true)
+      
+      // Paralel API çağrıları
+      const [menuRes, categoriesRes, ingredientsRes] = await Promise.all([
+        fetch('/api/admin/menu?enrich=true&stats=true'),
+        fetch('/api/admin/categories'),
+        fetch('/api/admin/ingredients')
+      ])
 
-  const fetchCategories = async () => {
-    try {
-      const response = await fetch('/api/admin/categories')
-      const data = await response.json()
-      if (data.success) {
-        setCategories(data.flatCategories || [])
-      }
-    } catch (error) {
-      console.error('Error fetching categories:', error)
-    }
-  }
+      const [menuData, categoriesData, ingredientsData] = await Promise.all([
+        menuRes.json(),
+        categoriesRes.json(),
+        ingredientsRes.json()
+      ])
 
-  const fetchIngredients = async () => {
-    try {
-      const response = await fetch('/api/admin/ingredients')
-      const data = await response.json()
-      if (data.success) {
-        setIngredients(data.ingredients || [])
+      if (menuData.success) {
+        setMenuItems(menuData.items || [])
       }
+
+      if (categoriesData.success) {
+        setCategories(categoriesData.categories || [])
+        setFlatCategories(categoriesData.flatCategories || [])
+      }
+
+      if (ingredientsData.success) {
+        setIngredients(ingredientsData.ingredients || [])
+      }
+
     } catch (error) {
-      console.error('Error fetching ingredients:', error)
+      console.error('Veri yüklenirken hata:', error)
+      toast.error('Veriler yüklenemedi')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    
-    try {
-      const url = '/api/admin/menu'
-      const method = editingItem ? 'PUT' : 'POST'
-      const body = editingItem 
-        ? { ...formData, id: editingItem.id }
-        : formData
-
-      const response = await fetch(url, {
-        method: method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-
-      const result = await response.json()
-
-      if (result.success) {
-        await fetchMenuItems()
-        resetForm()
-        toast.success(editingItem ? 'Ürün güncellendi!' : 'Ürün eklendi!')
-      } else {
-        toast.error(result.error || 'İşlem başarısız')
-      }
-    } catch (error) {
-      console.error('Error saving item:', error)
-      toast.error('Kaydetme hatası!')
-    }
+  const openAddModal = () => {
+    setModalMode('add')
+    setEditingItem(null)
+    resetForm()
+    setActiveTab('basic')
+    setShowModal(true)
   }
 
-  const handleDelete = async (id) => {
-    if (!confirm('Bu ürünü silmek istediğinizden emin misiniz?')) return
-
-    try {
-      const response = await fetch(`/api/admin/menu?id=${id}`, {
-        method: 'DELETE',
-      })
-
-      const result = await response.json()
-
-      if (result.success) {
-        await fetchMenuItems()
-        toast.success('Ürün silindi!')
-      } else {
-        toast.error(result.error || 'Silme hatası')
-      }
-    } catch (error) {
-      console.error('Error deleting item:', error)
-      toast.error('Silme hatası!')
-    }
-  }
-
-  const handleEdit = (item) => {
+  const openEditModal = (item) => {
+    setModalMode('edit')
     setEditingItem(item)
     setFormData({
-      name: item.name,
-      description: item.description,
-      slug: item.slug || '',
-      price: item.price.toString(),
-      categoryId: item.categoryId,
-      image: item.image,
+      name: item.name || '',
+      description: item.description || '',
+      price: item.price?.toString() || '',
+      categoryId: item.categoryId || '',
+      subcategoryId: item.subcategoryId || '',
+      image: item.image || null,
       ingredients: item.ingredients || [],
-      customizations: item.customizations || {
-        removable: [],
-        extras: [],
-        sizes: [],
-        options: []
-      },
-      nutritionInfo: item.nutritionInfo || {
-        calories: '',
-        protein: '',
-        carbs: '',
-        fat: ''
-      },
+      customizations: item.customizations || { removable: [], extras: [] },
+      nutritionInfo: item.nutritionInfo || { calories: '', protein: '', carbs: '', fat: '' },
       allergens: item.allergens || [],
       dietaryInfo: item.dietaryInfo || {
-        isVegetarian: false,
-        isVegan: false,
-        isGlutenFree: false,
-        isHalal: false
+        isVegan: false, isVegetarian: false, isGlutenFree: false, isKeto: false, isLowCarb: false
       },
       cookingTime: item.cookingTime?.toString() || '',
       spicyLevel: item.spicyLevel || 0,
-      featured: item.featured || false,
+      sortOrder: item.sortOrder || 0,
       available: item.available !== false,
-      sortOrder: item.sortOrder || 0
+      featured: item.featured || false
     })
-    setShowAddForm(true)
     setActiveTab('basic')
+    setShowModal(true)
+  }
+
+  const closeModal = () => {
+    setShowModal(false)
+    setEditingItem(null)
+    resetForm()
   }
 
   const resetForm = () => {
     setFormData({
       name: '',
       description: '',
-      slug: '',
       price: '',
       categoryId: '',
+      subcategoryId: '',
       image: null,
       ingredients: [],
-      customizations: {
-        removable: [],
-        extras: [],
-        sizes: [],
-        options: []
-      },
-      nutritionInfo: {
-        calories: '',
-        protein: '',
-        carbs: '',
-        fat: ''
-      },
+      customizations: { removable: [], extras: [] },
+      nutritionInfo: { calories: '', protein: '', carbs: '', fat: '' },
       allergens: [],
       dietaryInfo: {
-        isVegetarian: false,
-        isVegan: false,
-        isGlutenFree: false,
-        isHalal: false
+        isVegan: false, isVegetarian: false, isGlutenFree: false, isKeto: false, isLowCarb: false
       },
       cookingTime: '',
       spicyLevel: 0,
-      featured: false,
+      sortOrder: 0,
       available: true,
-      sortOrder: 0
+      featured: false
     })
-    setShowAddForm(false)
-    setEditingItem(null)
-    setActiveTab('basic')
   }
 
-  const handleAllergenChange = (allergen) => {
-    setFormData(prev => ({
-      ...prev,
-      allergens: prev.allergens.includes(allergen)
-        ? prev.allergens.filter(a => a !== allergen)
-        : [...prev.allergens, allergen]
-    }))
-  }
-
-  const handleIngredientToggle = (ingredientId) => {
-    setFormData(prev => ({
-      ...prev,
-      ingredients: prev.ingredients.includes(ingredientId)
-        ? prev.ingredients.filter(id => id !== ingredientId)
-        : [...prev.ingredients, ingredientId]
-    }))
-  }
-
-  const handleRemovableToggle = (ingredientId) => {
-    setFormData(prev => ({
-      ...prev,
-      customizations: {
-        ...prev.customizations,
-        removable: prev.customizations.removable.includes(ingredientId)
-          ? prev.customizations.removable.filter(id => id !== ingredientId)
-          : [...prev.customizations.removable, ingredientId]
+  const handleFormChange = (field, value) => {
+    setFormData(prev => {
+      const newData = { ...prev }
+      
+      if (field.includes('.')) {
+        const [parent, child] = field.split('.')
+        newData[parent] = { ...newData[parent], [child]: value }
+      } else {
+        newData[field] = value
+        
+        // Kategori değiştiğinde alt kategoriyi sıfırla
+        if (field === 'categoryId') {
+          newData.subcategoryId = ''
+        }
       }
-    }))
+      
+      return newData
+    })
   }
 
-  const addExtraIngredient = () => {
-  setFormData(prev => ({
-    ...prev,
-    customizations: {
-      ...prev.customizations,
-      extras: [...prev.customizations.extras, { ingredientId: '', price: '' }] // 0 yerine ''
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    
+    if (!formData.name.trim() || !formData.description.trim() || !formData.price || !formData.categoryId) {
+      toast.error('Zorunlu alanları doldurun!')
+      return
     }
-  }))
-}
 
-  const updateExtraIngredient = (index, field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      customizations: {
-        ...prev.customizations,
-        extras: prev.customizations.extras.map((extra, i) => 
-          i === index ? { ...extra, [field]: value } : extra
-        )
+    try {
+      const url = '/api/admin/menu'
+      const method = modalMode === 'edit' ? 'PUT' : 'POST'
+      const body = modalMode === 'edit' 
+        ? { ...formData, id: editingItem.id }
+        : formData
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        await loadData()
+        closeModal()
+        toast.success(modalMode === 'edit' ? 'Ürün güncellendi!' : 'Ürün eklendi!')
+      } else {
+        toast.error(result.error || 'İşlem başarısız')
       }
-    }))
+    } catch (error) {
+      console.error('Ürün kaydetme hatası:', error)
+      toast.error('Kaydetme sırasında hata oluştu')
+    }
   }
 
-  const removeExtraIngredient = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      customizations: {
-        ...prev.customizations,
-        extras: prev.customizations.extras.filter((_, i) => i !== index)
+  const handleDelete = async (item) => {
+    if (!confirm(`"${item.name}" ürününü silmek istediğinizden emin misiniz?`)) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/admin/menu?id=${item.id}`, {
+        method: 'DELETE'
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        await loadData()
+        toast.success('Ürün silindi!')
+      } else {
+        toast.error(result.error || 'Silme işlemi başarısız')
       }
-    }))
+    } catch (error) {
+      console.error('Ürün silme hatası:', error)
+      toast.error('Silme sırasında hata oluştu')
+    }
   }
 
-  // Auto-generate slug from name
-  const handleNameChange = (name) => {
-    setFormData(prev => ({
-      ...prev,
-      name,
-      slug: name.toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .replace(/\s+/g, '-')
-        .replace(/-+/g, '-')
-        .trim('-')
-    }))
+  const toggleAvailability = async (item) => {
+    try {
+      const response = await fetch('/api/admin/menu', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...item,
+          available: !item.available,
+          id: item.id
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        await loadData()
+        toast.success(`Ürün ${!item.available ? 'aktif' : 'pasif'} hale getirildi`)
+      } else {
+        toast.error(result.error || 'Durum değiştirilemedi')
+      }
+    } catch (error) {
+      console.error('Durum değiştirme hatası:', error)
+      toast.error('Durum değiştirme sırasında hata oluştu')
+    }
   }
 
-  const getCategoryName = (categoryId) => {
-    const category = categories.find(cat => cat.id === categoryId)
-    return category ? category.name : 'Kategori Yok'
-  }
+  // Filtreleme
+  const filteredItems = menuItems.filter(item => {
+    const matchesSearch = !searchTerm || 
+      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.description.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    const matchesCategory = !filterCategory || item.categoryId === filterCategory
+    const matchesSubcategory = !filterSubcategory || item.subcategoryId === filterSubcategory
+    
+    return matchesSearch && matchesCategory && matchesSubcategory
+  })
 
-  const getIngredientName = (ingredientId) => {
-    const ingredient = ingredients.find(ing => ing.id === ingredientId)
-    return ingredient ? ingredient.name : 'Malzeme Bulunamadı'
+  // Alt kategorileri getir
+  const getSubcategories = (categoryId) => {
+    return flatCategories.filter(cat => cat.parentId === categoryId)
   }
 
   if (loading) {
     return (
       <div className="p-6 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-amber-200 border-t-amber-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Menü yükleniyor...</p>
+        </div>
       </div>
     )
   }
-
-  const tabs = [
-    { id: 'basic', label: 'Temel Bilgiler', icon: Info },
-    { id: 'ingredients', label: 'Malzemeler', icon: ChefHat },
-    { id: 'customization', label: 'Özelleştirme', icon: Package },
-    { id: 'nutrition', label: 'Beslenme & Diyet', icon: Leaf }
-  ]
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
             Menü Yönetimi
           </h1>
-          <p className="text-slate-600 mt-2">Menü öğelerinizi ekleyin, düzenleyin ve yönetin</p>
+          <p className="text-gray-600 mt-2">Ürünlerinizi ekleyin, düzenleyin ve yönetin</p>
         </div>
         
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => setShowAddForm(true)}
-          className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:shadow-lg transition-all duration-200 flex items-center gap-2 font-medium"
+          onClick={openAddModal}
+          className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-6 py-3 rounded-xl hover:shadow-lg transition-all duration-200 flex items-center gap-2 font-medium"
         >
           <Plus className="w-5 h-5" />
           Yeni Ürün Ekle
         </motion.button>
       </div>
 
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-600 text-sm font-medium">Toplam Ürün</p>
+              <p className="text-3xl font-bold text-gray-900">{menuItems.length}</p>
+            </div>
+            <div className="bg-amber-100 p-3 rounded-lg">
+              <Package className="w-6 h-6 text-amber-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-600 text-sm font-medium">Müsait Ürün</p>
+              <p className="text-3xl font-bold text-gray-900">
+                {menuItems.filter(item => item.available !== false).length}
+              </p>
+            </div>
+            <div className="bg-green-100 p-3 rounded-lg">
+              <Eye className="w-6 h-6 text-green-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-600 text-sm font-medium">Öne Çıkan</p>
+              <p className="text-3xl font-bold text-gray-900">
+                {menuItems.filter(item => item.featured).length}
+              </p>
+            </div>
+            <div className="bg-yellow-100 p-3 rounded-lg">
+              <Star className="w-6 h-6 text-yellow-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-600 text-sm font-medium">Ortalama Fiyat</p>
+              <p className="text-3xl font-bold text-gray-900">
+                ₺{menuItems.length > 0 
+  ? (menuItems.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0) / menuItems.length).toFixed(2)
+                  : '0.00'
+                }
+              </p>
+            </div>
+            <div className="bg-blue-100 p-3 rounded-lg">
+              <ShoppingCart className="w-6 h-6 text-blue-600" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <input
+              type="text"
+              placeholder="Ürün ara..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            />
+          </div>
+
+          {/* Category Filter */}
+          <select
+            value={filterCategory}
+            onChange={(e) => {
+              setFilterCategory(e.target.value)
+              setFilterSubcategory('')
+            }}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+          >
+            <option value="">Tüm Kategoriler</option>
+            {flatCategories.filter(cat => !cat.parentId).map(category => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Subcategory Filter */}
+          <select
+            value={filterSubcategory}
+            onChange={(e) => setFilterSubcategory(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            disabled={!filterCategory}
+          >
+            <option value="">Tüm Alt Kategoriler</option>
+            {getSubcategories(filterCategory).map(subcategory => (
+              <option key={subcategory.id} value={subcategory.id}>
+                {subcategory.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Clear Filters */}
+          <button
+            onClick={() => {
+              setSearchTerm('')
+              setFilterCategory('')
+              setFilterSubcategory('')
+            }}
+            className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Filtreleri Temizle
+          </button>
+        </div>
+      </div>
+
       {/* Menu Items Grid */}
-      <div className="grid gap-6">
-        {menuItems.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-2xl border border-slate-200">
-            <ChefHat className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-slate-900 mb-2">Henüz ürün yok</h3>
-            <p className="text-slate-600 mb-6">İlk ürününüzü oluşturarak başlayın</p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        {filteredItems.length === 0 ? (
+          <div className="col-span-full text-center py-16 bg-white rounded-xl border border-gray-200">
+            <ChefHat className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Henüz ürün yok</h3>
+            <p className="text-gray-600 mb-6">İlk ürününüzü oluşturarak başlayın</p>
             <button
-              onClick={() => setShowAddForm(true)}
-              className="bg-indigo-600 text-white px-6 py-3 rounded-xl hover:bg-indigo-700 transition-colors"
+              onClick={openAddModal}
+              className="bg-amber-600 text-white px-6 py-3 rounded-xl hover:bg-amber-700 transition-colors"
             >
               Ürün Ekle
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {menuItems.map(item => (
-              <motion.div
-                key={item.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-2xl shadow-sm border border-slate-200 hover:shadow-lg hover:border-slate-300 transition-all duration-200 overflow-hidden group"
-              >
-                {/* Image */}
-                <div className="relative h-48 bg-slate-100">
-                  {item.image ? (
-                    <img 
-                      src={item.image} 
-                      alt={item.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <ChefHat className="w-16 h-16 text-slate-300" />
-                    </div>
+          filteredItems.map((item, index) => (
+            <motion.div
+              key={item.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: index * 0.1 }}
+              className="bg-white rounded-2xl shadow-sm border border-gray-200 hover:shadow-lg hover:border-gray-300 transition-all duration-200 overflow-hidden group"
+            >
+              {/* Image */}
+              <div className="relative h-48 bg-gradient-to-br from-amber-100 to-orange-100">
+                {item.image ? (
+                  <Image
+                    src={item.image}
+                    alt={item.name}
+                    fill
+                    className="object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <ChefHat className="w-16 h-16 text-amber-300" />
+                  </div>
+                )}
+                
+                {/* Status Badges */}
+                <div className="absolute top-3 left-3 flex flex-col space-y-2">
+                  {item.featured && (
+                    <span className="bg-yellow-500 text-white px-2 py-1 rounded-full text-xs font-medium">
+                      Öne Çıkan
+                    </span>
                   )}
-                  
-                  {/* Overlay */}
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                    <div className="flex gap-2">
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => handleEdit(item)}
-                        className="p-2 bg-white/90 rounded-full text-slate-700 hover:bg-white transition-colors"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </motion.button>
-                      
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => handleDelete(item.id)}
-                        className="p-2 bg-red-500/90 rounded-full text-white hover:bg-red-500 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </motion.button>
-                    </div>
-                  </div>
-
-                  {/* Badges */}
-                  <div className="absolute top-3 left-3 flex flex-wrap gap-2">
-                    {item.featured && (
-                      <span className="px-2 py-1 bg-yellow-500 text-white text-xs rounded-full flex items-center gap-1">
-                        <Star className="w-3 h-3" />
-                        Öne Çıkan
-                      </span>
-                    )}
-                    {!item.available && (
-                      <span className="px-2 py-1 bg-red-500 text-white text-xs rounded-full">
-                        Mevcut Değil
-                      </span>
-                    )}
-                  </div>
+                  {!item.available && (
+                    <span className="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-medium">
+                      Stokta Yok
+                    </span>
+                  )}
                 </div>
 
-                {/* Content */}
-                <div className="p-6">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-bold text-slate-900 text-lg truncate">{item.name}</h3>
-                      <p className="text-sm text-slate-600 mb-2">{getCategoryName(item.categoryId)}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-bold text-indigo-600">₺{item.price.toFixed(2)}</p>
-                    </div>
-                  </div>
-                  
-                  <p className="text-slate-600 text-sm line-clamp-2 mb-4">{item.description}</p>
-                  
-                  {/* Tags */}
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {item.dietaryInfo?.isVegetarian && (
-                      <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
-                        Vejetaryen
-                      </span>
+                {/* Actions */}
+                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex space-x-2">
+                  <button
+                    onClick={() => toggleAvailability(item)}
+                    className={`p-2 rounded-full backdrop-blur-sm transition-colors ${
+                      item.available 
+                        ? 'bg-green-500/90 hover:bg-green-600/90' 
+                        : 'bg-gray-500/90 hover:bg-gray-600/90'
+                    }`}
+                    title={item.available ? 'Stoktan Çıkar' : 'Stoka Ekle'}
+                  >
+                    {item.available ? (
+                      <Eye className="w-4 h-4 text-white" />
+                    ) : (
+                      <EyeOff className="w-4 h-4 text-white" />
                     )}
-                    {item.dietaryInfo?.isVegan && (
-                      <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
-                        Vegan
-                      </span>
+                  </button>
+
+                  <button
+                    onClick={() => openEditModal(item)}
+                    className="p-2 bg-blue-500/90 hover:bg-blue-600/90 rounded-full backdrop-blur-sm transition-colors"
+                    title="Düzenle"
+                  >
+                    <Edit2 className="w-4 h-4 text-white" />
+                  </button>
+
+                  <button
+                    onClick={() => handleDelete(item)}
+                    className="p-2 bg-red-500/90 hover:bg-red-600/90 rounded-full backdrop-blur-sm transition-colors"
+                    title="Sil"
+                  >
+                    <Trash2 className="w-4 h-4 text-white" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-3">
+                  <h3 className="font-bold text-gray-800 text-lg leading-tight group-hover:text-gray-900 transition-colors">
+                    {item.name}
+                  </h3>
+                  <span className="text-xl font-bold text-amber-600">
+₺{(parseFloat(item.price) || 0).toFixed(2)}
+                  </span>
+                </div>
+                
+                <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+                  {item.description}
+                </p>
+
+                {/* Category Info */}
+                <div className="flex items-center space-x-2 mb-4">
+                  <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs rounded-full font-medium">
+                    {item.category?.name}
+                  </span>
+                  {item.subcategory && (
+                    <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full font-medium">
+                      {item.subcategory.name}
+                    </span>
+                  )}
+                </div>
+
+                {/* Features */}
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <div className="flex items-center space-x-3">
+                    {item.cookingTime && (
+                      <div className="flex items-center">
+                        <Clock className="w-3 h-3 mr-1" />
+                        <span>{item.cookingTime}dk</span>
+                      </div>
                     )}
                     {item.spicyLevel > 0 && (
-                      <span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full flex items-center gap-1">
-                        <Flame className="w-3 h-3" />
-                        {item.spicyLevel}/5
-                      </span>
-                    )}
-                    {item.cookingTime && (
-                      <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {item.cookingTime} dk
-                      </span>
+                      <div className="flex items-center">
+                        <Flame className="w-3 h-3 mr-1 text-red-500" />
+                        <span>{spicyLevels[item.spicyLevel]?.label}</span>
+                      </div>
                     )}
                   </div>
-
-                  {/* Allergens */}
-                  {item.allergens && item.allergens.length > 0 && (
-                    <div className="border-t border-slate-200 pt-3">
-                      <p className="text-xs text-slate-500 mb-2">Alerjenler:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {item.allergens.map(allergen => (
-                          <span key={allergen} className="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full">
-                            {allergen}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  
+                  <div className="flex items-center">
+                    <Star className="w-3 h-3 text-yellow-400 fill-current mr-1" />
+                    <span>4.8</span>
+                  </div>
                 </div>
-              </motion.div>
-            ))}
-          </div>
+              </div>
+            </motion.div>
+          ))
         )}
       </div>
 
       {/* Add/Edit Modal */}
       <AnimatePresence>
-        {showAddForm && (
+        {showModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+            onClick={closeModal}
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[95vh] overflow-hidden"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
             >
-              {/* Header */}
-              <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-indigo-50 to-purple-50">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-bold text-slate-900">
-                    {editingItem ? 'Ürün Düzenle' : 'Yeni Ürün Ekle'}
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold">
+                    {modalMode === 'edit' ? 'Ürün Düzenle' : 'Yeni Ürün Ekle'}
                   </h2>
-                  <button 
-                    onClick={resetForm}
-                    className="p-2 hover:bg-white/50 rounded-lg transition-colors"
+                  <button
+                    onClick={closeModal}
+                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
                   >
-                    <X className="w-5 h-5 text-slate-500" />
+                    <X className="w-5 h-5" />
                   </button>
                 </div>
+              </div>
 
-                {/* Tabs */}
-                <div className="flex gap-2 mt-4">
+              {/* Modal Tabs */}
+              <div className="border-b border-gray-200 px-6">
+                <div className="flex space-x-8">
                   {tabs.map(tab => {
                     const Icon = tab.icon
                     return (
                       <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                        className={`flex items-center space-x-2 py-4 border-b-2 transition-colors ${
                           activeTab === tab.id
-                            ? 'bg-white text-indigo-600 shadow-sm'
-                            : 'text-slate-600 hover:bg-white/50'
+                            ? 'border-amber-500 text-amber-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
                         }`}
                       >
                         <Icon className="w-4 h-4" />
-                        {tab.label}
+                        <span className="font-medium">{tab.label}</span>
                       </button>
                     )
                   })}
                 </div>
               </div>
 
-              {/* Form Content */}
-              <div className="overflow-y-auto max-h-[calc(95vh-140px)]">
-                <form onSubmit={handleSubmit} className="p-6">
-                  <div className="space-y-8">
-                    {/* Basic Information Tab */}
-                    {activeTab === 'basic' && (
-                      <motion.div
-                        key="basic"
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        className="grid grid-cols-1 lg:grid-cols-2 gap-8"
-                      >
-                        {/* Left Column */}
-                        <div className="space-y-6">
-                          {/* Product Name */}
-                          <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-2">
-                              Ürün Adı *
-                            </label>
-                            <input
-                              type="text"
-                              value={formData.name}
-                              onChange={(e) => handleNameChange(e.target.value)}
-                              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                              placeholder="Ürün adını girin"
-                              required
-                            />
-                          </div>
-
-                          {/* Description */}
-                          <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-2">
-                              Açıklama *
-                            </label>
-                            <textarea
-                              value={formData.description}
-                              onChange={(e) => setFormData({...formData, description: e.target.value})}
-                              rows="4"
-                              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 resize-none"
-                              placeholder="Ürün açıklamasını girin..."
-                              required
-                            /></div>
-
-                          {/* Price & Category */}
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                Fiyat (₺) *
-                              </label>
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={formData.price}
-                                onChange={(e) => setFormData({...formData, price: e.target.value})}
-                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                                placeholder="0.00"
-                                required
-                              />
-                            </div>
-
-                            <div>
-                              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                Kategori *
-                              </label>
-                              <select
-                                value={formData.categoryId}
-                                onChange={(e) => setFormData({...formData, categoryId: e.target.value})}
-                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                                required
-                              >
-                                <option value="">Kategori Seç</option>
-                                {categories.map(cat => (
-                                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                ))}
-                              </select>
-                            </div>
-                          </div>
-
-                          {/* Cooking Time & Spicy Level */}
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                Hazırlama Süresi (dk)
-                              </label>
-                              <input
-                                type="number"
-                                value={formData.cookingTime}
-                                onChange={(e) => setFormData({...formData, cookingTime: e.target.value})}
-                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                                placeholder="15"
-                                min="0"
-                              />
-                            </div>
-
-                            <div>
-                              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                Acılık Seviyesi (0-5)
-                              </label>
-                              <select
-                                value={formData.spicyLevel}
-                                onChange={(e) => setFormData({...formData, spicyLevel: parseInt(e.target.value)})}
-                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                              >
-                                <option value="0">Acısız</option>
-                                <option value="1">Çok Az Acı</option>
-                                <option value="2">Az Acı</option>
-                                <option value="3">Orta</option>
-                                <option value="4">Acı</option>
-                                <option value="5">Çok Acı</option>
-                              </select>
-                            </div>
-                          </div>
-
-                          {/* Checkboxes */}
-                          <div className="space-y-3">
-                            <div className="flex items-center gap-3">
-                              <input
-                                type="checkbox"
-                                id="featured"
-                                checked={formData.featured}
-                                onChange={(e) => setFormData({...formData, featured: e.target.checked})}
-                                className="w-5 h-5 text-indigo-600 bg-slate-50 border-slate-300 rounded focus:ring-indigo-500"
-                              />
-                              <label htmlFor="featured" className="text-sm font-medium text-slate-700 flex items-center gap-2">
-                                <Star className="w-4 h-4" />
-                                Öne çıkan ürün
-                              </label>
-                            </div>
-
-                            <div className="flex items-center gap-3">
-                              <input
-                                type="checkbox"
-                                id="available"
-                                checked={formData.available}
-                                onChange={(e) => setFormData({...formData, available: e.target.checked})}
-                                className="w-5 h-5 text-indigo-600 bg-slate-50 border-slate-300 rounded focus:ring-indigo-500"
-                              />
-                              <label htmlFor="available" className="text-sm font-medium text-slate-700">
-                                Ürün mevcut
-                              </label>
-                            </div>
-                          </div>
+              {/* Modal Content */}
+              <form onSubmit={handleSubmit} className="h-[calc(90vh-140px)] overflow-y-auto">
+                <div className="p-6">
+                  {/* Basic Tab */}
+                  {activeTab === 'basic' && (
+                    <div className="space-y-6">
+                      {/* Name & Description */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Ürün Adı *
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.name}
+                            onChange={(e) => handleFormChange('name', e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                            placeholder="Örn: Margherita Pizza"
+                            required
+                          />
                         </div>
 
-                        {/* Right Column */}
-                        <div className="space-y-6">
-                          {/* Product Image */}
-                          <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-2">
-                              Ürün Görseli
-                            </label>
-                            <ImageUpload
-                              currentImage={formData.image}
-                              onImageUploaded={(image) => setFormData({...formData, image: image.url})}
-                              onImageRemoved={() => setFormData({...formData, image: null})}
-                              size="lg"
-                            />
-                          </div>
-
-                          {/* URL Slug */}
-                          <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-2">
-                              URL Slug
-                            </label>
-                            <input
-                              type="text"
-                              value={formData.slug}
-                              onChange={(e) => setFormData({...formData, slug: e.target.value})}
-                              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                              placeholder="urun-slug"
-                            />
-                            <p className="text-xs text-slate-500 mt-1">URL'de kullanılacak kısa isim (otomatik oluşturulur)</p>
-                          </div>
-
-                          {/* Sort Order */}
-                          <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-2">
-                              Sıralama
-                            </label>
-                            <input
-                              type="number"
-                              value={formData.sortOrder}
-                              onChange={(e) => setFormData({...formData, sortOrder: parseInt(e.target.value)})}
-                              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                              placeholder="0"
-                              min="0"
-                            />
-                            <p className="text-xs text-slate-500 mt-1">Küçük sayılar önce görünür</p>
-                          </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Fiyat (₺) *
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={formData.price}
+                            onChange={(e) => handleFormChange('price', e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                            placeholder="0.00"
+                            required
+                          />
                         </div>
-                      </motion.div>
-                    )}
+                      </div>
 
-                    {/* Ingredients Tab */}
-                    {activeTab === 'ingredients' && (
-                      <motion.div
-                        key="ingredients"
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        className="space-y-6"
-                      >
-                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                          <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
-                            <ChefHat className="w-5 h-5" />
-                            Ürün Malzemeleri
-                          </h3>
-                          <p className="text-blue-700 text-sm">
-                            Bu üründe bulunan temel malzemeleri seçin. Bu malzemeler müşteri menüsünde görünecek.
-                          </p>
+                      {/* Description */}
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                          Açıklama *
+                        </label>
+                        <textarea
+                          value={formData.description}
+                          onChange={(e) => handleFormChange('description', e.target.value)}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
+                          rows={4}
+                          placeholder="Ürün açıklaması..."
+                          required
+                        />
+                      </div>
+
+                      {/* Categories */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Ana Kategori *
+                          </label>
+                          <select
+                            value={formData.categoryId}
+                            onChange={(e) => handleFormChange('categoryId', e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                            required
+                          >
+                            <option value="">Kategori Seçin</option>
+                            {flatCategories.filter(cat => !cat.parentId).map(category => (
+                              <option key={category.id} value={category.id}>
+                                {category.name}
+                              </option>
+                            ))}
+                          </select>
                         </div>
 
-                        {/* Ingredients by Category */}
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Alt Kategori
+                          </label>
+                          <select
+                            value={formData.subcategoryId}
+                            onChange={(e) => handleFormChange('subcategoryId', e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                            disabled={!formData.categoryId}
+                          >
+                            <option value="">Alt Kategori Seçin</option>
+                            {getSubcategories(formData.categoryId).map(subcategory => (
+                              <option key={subcategory.id} value={subcategory.id}>
+                                {subcategory.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Image Upload */}
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                          Ürün Görseli
+                        </label>
+                        <ImageUpload
+                          currentImage={formData.image}
+                          onImageUploaded={(imageData) => handleFormChange('image', imageData.url)}
+                          onImageRemoved={() => handleFormChange('image', null)}
+                          size="default"
+                        />
+                      </div>
+
+                      {/* Additional Settings */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Hazırlama Süresi (dk)
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="999"
+                            value={formData.cookingTime}
+                            onChange={(e) => handleFormChange('cookingTime', e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                            placeholder="15"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Acılık Seviyesi
+                          </label>
+                          <select
+                            value={formData.spicyLevel}
+                            onChange={(e) => handleFormChange('spicyLevel', parseInt(e.target.value))}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                          >
+                            {spicyLevels.map(level => (
+                              <option key={level.value} value={level.value}>
+                                {level.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Sıralama
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={formData.sortOrder}
+                            onChange={(e) => handleFormChange('sortOrder', parseInt(e.target.value) || 0)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Status Toggles */}
+                      <div className="flex items-center justify-between space-x-6">
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm font-semibold text-gray-700 mr-4">
+                            Müsait
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => handleFormChange('available', !formData.available)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              formData.available ? 'bg-amber-500' : 'bg-gray-300'
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                formData.available ? 'translate-x-6' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm font-semibold text-gray-700 mr-4">
+                            Öne Çıkan
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => handleFormChange('featured', !formData.featured)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              formData.featured ? 'bg-yellow-500' : 'bg-gray-300'
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                formData.featured ? 'translate-x-6' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Ingredients Tab */}
+                  {activeTab === 'ingredients' && (
+                    <div className="space-y-6">
+                      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                        <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                          <ChefHat className="w-5 h-5" />
+                          Ürün Malzemeleri
+                        </h3>
+                        <p className="text-blue-700 text-sm">
+                          Bu üründe bulunan temel malzemeleri seçin. Malzemeler müşteri menüsünde görünecek.
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 max-h-96 overflow-y-auto">
                         {ingredientCategories.map(category => {
-                          const categoryIngredients = ingredients.filter(ing => ing.category === category)
+                          const categoryIngredients = ingredients.filter(ing => ing.category === category.value)
                           if (categoryIngredients.length === 0) return null
 
                           return (
-                            <div key={category} className="bg-white rounded-xl border border-slate-200 p-6">
-                              <h4 className="font-semibold text-slate-900 mb-4 capitalize flex items-center gap-2">
+                            <div key={category.value} className="bg-white rounded-xl border border-gray-200 p-4">
+                              <h4 className="font-semibold text-gray-900 mb-3 capitalize flex items-center gap-2">
                                 <Tag className="w-4 h-4" />
-                                {category === 'meat' ? 'Et Ürünleri' :
-                                 category === 'dairy' ? 'Süt Ürünleri' :
-                                 category === 'vegetable' ? 'Sebze' :
-                                 category === 'fruit' ? 'Meyve' :
-                                 category === 'grain' ? 'Tahıl' :
-                                 category === 'spice' ? 'Baharat' :
-                                 category === 'sauce' ? 'Sos' :
-                                 'Diğer'}
+                                {category.label}
                               </h4>
-                              
-                              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                                 {categoryIngredients.map(ingredient => (
                                   <label
                                     key={ingredient.id}
-                                    className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
-                                      formData.ingredients.includes(ingredient.id)
-                                        ? 'border-indigo-500 bg-indigo-50'
-                                        : 'border-slate-200 hover:border-slate-300'
-                                    }`}
+                                    className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50 cursor-pointer"
                                   >
                                     <input
                                       type="checkbox"
                                       checked={formData.ingredients.includes(ingredient.id)}
-                                      onChange={() => handleIngredientToggle(ingredient.id)}
-                                      className="w-4 h-4 text-indigo-600 bg-white border-slate-300 rounded focus:ring-indigo-500"
+                                      onChange={(e) => {
+                                        const newIngredients = e.target.checked
+                                          ? [...formData.ingredients, ingredient.id]
+                                          : formData.ingredients.filter(id => id !== ingredient.id)
+                                        handleFormChange('ingredients', newIngredients)
+                                      }}
+                                      className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
                                     />
-                                    <span className="text-sm font-medium text-slate-700 flex-1">
-                                      {ingredient.name}
-                                    </span>
-                                    {ingredient.isVegetarian && (
-                                      <Leaf className="w-3 h-3 text-green-500" />
+                                    <span className="text-sm text-gray-700">{ingredient.name}</span>
+                                    {ingredient.extraPrice > 0 && (
+                                      <span className="text-xs text-amber-600">
+                                        (+₺{ingredient.extraPrice.toFixed(2)})
+                                      </span>
                                     )}
                                   </label>
                                 ))}
@@ -815,342 +916,262 @@ export default function AdminMenuPage() {
                             </div>
                           )
                         })}
-                      </motion.div>
-                    )}
+                      </div>
+                    </div>
+                  )}
 
-                    {/* Customization Tab */}
-                    {activeTab === 'customization' && (
-                      <motion.div
-                        key="customization"
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        className="space-y-6"
-                      >
-                        {/* Removable Ingredients */}
-                        <div className="bg-white rounded-xl border border-slate-200 p-6">
-                          <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                            <X className="w-5 h-5" />
-                            Çıkarılabilir Malzemeler
-                          </h3>
-                          <p className="text-slate-600 text-sm mb-4">
-                            Müşterinin üründen çıkarabileceği malzemeleri seçin.
-                          </p>
+                  {/* Customization Tab */}
+                  {activeTab === 'customization' && (
+                    <div className="space-y-6">
+                      <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+                        <h3 className="font-semibold text-purple-900 mb-2 flex items-center gap-2">
+                          <Utensils className="w-5 h-5" />
+                          Ürün Özelleştirme
+                        </h3>
+                        <p className="text-purple-700 text-sm">
+                          Müşterilerin çıkarabileceği veya ekstra olarak ekleyebileceği malzemeleri belirleyin.
+                        </p>
+                      </div>
 
-                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                            {formData.ingredients.map(ingredientId => {
-                              const ingredient = ingredients.find(ing => ing.id === ingredientId)
-                              if (!ingredient) return null
+                      {/* Removable Ingredients */}
+                      <div>
+                        <h4 className="font-semibold text-gray-900 mb-4">Çıkarılabilir Malzemeler</h4>
+                        <p className="text-gray-600 text-sm mb-4">
+                          Müşteriler bu malzemeleri üründen çıkarabilir (örn: soğan, turşu)
+                        </p>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          {formData.ingredients.map(ingredientId => {
+                            const ingredient = ingredients.find(ing => ing.id === ingredientId)
+                            if (!ingredient) return null
 
-                              return (
-                                <label
-                                  key={ingredientId}
-                                  className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
-                                    formData.customizations.removable.includes(ingredientId)
-                                      ? 'border-red-500 bg-red-50'
-                                      : 'border-slate-200 hover:border-slate-300'
-                                  }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={formData.customizations.removable.includes(ingredientId)}
-                                    onChange={() => handleRemovableToggle(ingredientId)}
-                                    className="w-4 h-4 text-red-600 bg-white border-slate-300 rounded focus:ring-red-500"
-                                  />
-                                  <span className="text-sm font-medium text-slate-700 flex-1">
-                                    {ingredient.name}
-                                  </span>
-                                </label>
-                              )
-                            })}
-                          </div>
-                        </div>
-
-                        {/* Extra Ingredients */}
-                        <div className="bg-white rounded-xl border border-slate-200 p-6">
-                          <div className="flex justify-between items-center mb-4">
-                            <div>
-                              <h3 className="font-semibold text-slate-900 flex items-center gap-2">
-                                <Plus className="w-5 h-5" />
-                                Ekstra Malzemeler
-                              </h3>
-                              <p className="text-slate-600 text-sm mt-1">
-                                Müşterinin ekstra ücret karşılığında ekleyebileceği malzemeler.
-                              </p>
-                            </div>
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              type="button"
-                              onClick={addExtraIngredient}
-                              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-                            >
-                              <Plus className="w-4 h-4" />
-                              Ekstra Ekle
-                            </motion.button>
-                          </div>
-
-                          <div className="space-y-3">
-                            {formData.customizations.extras.map((extra, index) => (
-                              <div key={index} className="flex gap-3 items-center p-3 bg-slate-50 rounded-lg">
-                                <select
-                                  value={extra.ingredientId}
-                                  onChange={(e) => updateExtraIngredient(index, 'ingredientId', e.target.value)}
-                                  className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                >
-                                  <option value="">Malzeme Seç</option>
-                                  {ingredients.map(ingredient => (
-                                    <option key={ingredient.id} value={ingredient.id}>
-                                      {ingredient.name}
-                                    </option>
-                                  ))}
-                                </select>
-
-                                <input
-  type="number"
-  step="0.01"
-  value={extra.price || ''} // extra.price yerine extra.price || ''
-  onChange={(e) => updateExtraIngredient(index, 'price', e.target.value)} // parseFloat kaldır
-  placeholder="Fiyat"
-  className="w-24 px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-/>
-
-                                <motion.button
-                                  whileHover={{ scale: 1.05 }}
-                                  whileTap={{ scale: 0.95 }}
-                                  type="button"
-                                  onClick={() => removeExtraIngredient(index)}
-                                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </motion.button>
-                              </div>
-                            ))}
-
-                            {formData.customizations.extras.length === 0 && (
-                              <p className="text-slate-500 text-sm text-center py-4">
-                                Henüz ekstra malzeme eklenmedi
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-
-                    {/* Nutrition & Diet Tab */}
-                    {activeTab === 'nutrition' && (
-                      <motion.div
-                        key="nutrition"
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        className="space-y-6"
-                      >
-                        {/* Nutrition Info */}
-                        <div className="bg-white rounded-xl border border-slate-200 p-6">
-                          <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                            <Info className="w-5 h-5" />
-                            Beslenme Bilgileri
-                          </h3>
-                          
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div>
-                              <label className="block text-sm font-medium text-slate-700 mb-2">
-                                Kalori
-                              </label>
-                              <input
-                                type="number"
-                                value={formData.nutritionInfo.calories}
-                                onChange={(e) => setFormData({
-                                  ...formData,
-                                  nutritionInfo: {...formData.nutritionInfo, calories: e.target.value}
-                                })}
-                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                placeholder="kcal"
-                              />
-                            </div>
-
-                            <div>
-                              <label className="block text-sm font-medium text-slate-700 mb-2">
-                                Protein (g)
-                              </label>
-                              <input
-                                type="number"
-                                step="0.1"
-                                value={formData.nutritionInfo.protein}
-                                onChange={(e) => setFormData({
-                                  ...formData,
-                                  nutritionInfo: {...formData.nutritionInfo, protein: e.target.value}
-                                })}
-                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                placeholder="0.0"
-                              />
-                            </div>
-
-                            <div>
-                              <label className="block text-sm font-medium text-slate-700 mb-2">
-                                Karbonhidrat (g)
-                              </label>
-                              <input
-                                type="number"
-                                step="0.1"
-                                value={formData.nutritionInfo.carbs}
-                                onChange={(e) => setFormData({
-                                  ...formData,
-                                  nutritionInfo: {...formData.nutritionInfo, carbs: e.target.value}
-                                })}
-                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                placeholder="0.0"
-                              />
-                            </div>
-
-                            <div>
-                              <label className="block text-sm font-medium text-slate-700 mb-2">
-                                Yağ (g)
-                              </label>
-                              <input
-                                type="number"
-                                step="0.1"
-                                value={formData.nutritionInfo.fat}
-                                onChange={(e) => setFormData({
-                                  ...formData,
-                                  nutritionInfo: {...formData.nutritionInfo, fat: e.target.value}
-                                })}
-                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                placeholder="0.0"
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Dietary Information */}
-                        <div className="bg-white rounded-xl border border-slate-200 p-6">
-                          <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                            <Leaf className="w-5 h-5" />
-                            Diyet Bilgileri
-                          </h3>
-                          
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <label className="flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all duration-200 hover:border-slate-300">
-                              <input
-                                type="checkbox"
-                                checked={formData.dietaryInfo.isVegetarian}
-                                onChange={(e) => setFormData({
-                                  ...formData,
-                                  dietaryInfo: {...formData.dietaryInfo, isVegetarian: e.target.checked}
-                                })}
-                                className="w-4 h-4 text-green-600 bg-white border-slate-300 rounded focus:ring-green-500"
-                              />
-                              <span className="text-sm font-medium text-slate-700">Vejetaryen</span>
-                            </label>
-
-                            <label className="flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all duration-200 hover:border-slate-300">
-                              <input
-                                type="checkbox"
-                                checked={formData.dietaryInfo.isVegan}
-                                onChange={(e) => setFormData({
-                                  ...formData,
-                                  dietaryInfo: {...formData.dietaryInfo, isVegan: e.target.checked}
-                                })}
-                                className="w-4 h-4 text-green-600 bg-white border-slate-300 rounded focus:ring-green-500"
-                              />
-                              <span className="text-sm font-medium text-slate-700">Vegan</span>
-                            </label>
-
-                            <label className="flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all duration-200 hover:border-slate-300">
-                              <input
-                                type="checkbox"
-                                checked={formData.dietaryInfo.isGlutenFree}
-                                onChange={(e) => setFormData({
-                                  ...formData,
-                                  dietaryInfo: {...formData.dietaryInfo, isGlutenFree: e.target.checked}
-                                })}
-                                className="w-4 h-4 text-blue-600 bg-white border-slate-300 rounded focus:ring-blue-500"
-                              />
-                              <span className="text-sm font-medium text-slate-700">Glutensiz</span>
-                            </label>
-
-                            <label className="flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all duration-200 hover:border-slate-300">
-                              <input
-                                type="checkbox"
-                                checked={formData.dietaryInfo.isHalal}
-                                onChange={(e) => setFormData({
-                                  ...formData,
-                                  dietaryInfo: {...formData.dietaryInfo, isHalal: e.target.checked}
-                                })}
-                                className="w-4 h-4 text-purple-600 bg-white border-slate-300 rounded focus:ring-purple-500"
-                              />
-                              <span className="text-sm font-medium text-slate-700">Helal</span>
-                            </label>
-                          </div>
-                        </div>
-
-                        {/* Allergens */}
-                        <div className="bg-white rounded-xl border border-slate-200 p-6">
-                          <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                            <AlertTriangle className="w-5 h-5" />
-                            Alerjenler
-                          </h3>
-                          
-                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                            {allergenOptions.map(allergen => (
+                            return (
                               <label
-                                key={allergen}
-                                className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
-                                  formData.allergens.includes(allergen)
-                                    ? 'border-orange-500 bg-orange-50'
-                                    : 'border-slate-200 hover:border-slate-300'
-                                }`}
+                                key={ingredientId}
+                                className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer"
                               >
                                 <input
                                   type="checkbox"
-                                  checked={formData.allergens.includes(allergen)}
-                                  onChange={() => handleAllergenChange(allergen)}
-                                  className="w-4 h-4 text-orange-600 bg-white border-slate-300 rounded focus:ring-orange-500"
+                                  checked={formData.customizations.removable.includes(ingredientId)}
+                                  onChange={(e) => {
+                                    const newRemovable = e.target.checked
+                                      ? [...formData.customizations.removable, ingredientId]
+                                      : formData.customizations.removable.filter(id => id !== ingredientId)
+                                    handleFormChange('customizations', {
+                                      ...formData.customizations,
+                                      removable: newRemovable
+                                    })
+                                  }}
+                                  className="rounded border-gray-300 text-red-600 focus:ring-red-500"
                                 />
-                                <span className="text-sm font-medium text-slate-700 capitalize">
-                                  {allergen === 'gluten' ? 'Gluten' :
-                                   allergen === 'dairy' ? 'Süt Ürünleri' :
-                                   allergen === 'eggs' ? 'Yumurta' :
-                                   allergen === 'nuts' ? 'Fındık/Fıstık' :
-                                   allergen === 'peanuts' ? 'Yer Fıstığı' :
-                                   allergen === 'soy' ? 'Soya' :
-                                   allergen === 'fish' ? 'Balık' :
-                                   allergen === 'shellfish' ? 'Kabuklu Deniz Ürünleri' :
-                                   allergen === 'sesame' ? 'Susam' : allergen}
-                                </span>
+                                <span className="text-sm text-gray-700">{ingredient.name}</span>
                               </label>
-                            ))}
+                            )
+                          })}
+                        </div>
+                        {formData.ingredients.length === 0 && (
+                          <p className="text-gray-500 text-sm italic">
+                            Önce "Malzemeler" sekmesinden malzeme seçin
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Extra Ingredients */}
+                      <div>
+                        <h4 className="font-semibold text-gray-900 mb-4">Ekstra Malzemeler</h4>
+                        <p className="text-gray-600 text-sm mb-4">
+                          Müşteriler ekstra ücret karşılığında bu malzemeleri ekleyebilir
+                        </p>
+                        <div className="grid grid-cols-1 gap-3">
+                          {ingredients.filter(ing => ing.extraPrice > 0).map(ingredient => (
+                            <label
+                              key={ingredient.id}
+                              className="flex items-center justify-between p-3 bg-amber-50 rounded-lg hover:bg-amber-100 cursor-pointer"
+                            >
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  checked={formData.customizations.extras.some(extra => extra.ingredientId === ingredient.id)}
+                                  onChange={(e) => {
+                                    const newExtras = e.target.checked
+                                      ? [...formData.customizations.extras, {
+                                          ingredientId: ingredient.id,
+                                          price: ingredient.extraPrice
+                                        }]
+                                      : formData.customizations.extras.filter(extra => extra.ingredientId !== ingredient.id)
+                                    handleFormChange('customizations', {
+                                      ...formData.customizations,
+                                      extras: newExtras
+                                    })
+                                  }}
+                                  className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                                />
+                                <span className="text-sm text-gray-700">{ingredient.name}</span>
+                              </div>
+                              <span className="text-sm font-medium text-amber-600">
+                                +₺{ingredient.extraPrice.toFixed(2)}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Nutrition Tab */}
+                  {activeTab === 'nutrition' && (
+                    <div className="space-y-6">
+                      <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                        <h3 className="font-semibold text-green-900 mb-2 flex items-center gap-2">
+                          <Tag className="w-5 h-5" />
+                          Beslenme Bilgileri & Diyet
+                        </h3>
+                        <p className="text-green-700 text-sm">
+                          Ürünün beslenme değerleri ve diyet özelliklerini belirleyin.
+                        </p>
+                      </div>
+
+                      {/* Nutrition Info */}
+                      <div>
+                        <h4 className="font-semibold text-gray-900 mb-4">Beslenme Değerleri (100g için)</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Kalori (kcal)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={formData.nutritionInfo.calories}
+                              onChange={(e) => handleFormChange('nutritionInfo.calories', e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                              placeholder="250"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Protein (g)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              value={formData.nutritionInfo.protein}
+                              onChange={(e) => handleFormChange('nutritionInfo.protein', e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                              placeholder="12.5"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Karbonhidrat (g)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              value={formData.nutritionInfo.carbs}
+                              onChange={(e) => handleFormChange('nutritionInfo.carbs', e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                              placeholder="30.2"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Yağ (g)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              value={formData.nutritionInfo.fat}
+                              onChange={(e) => handleFormChange('nutritionInfo.fat', e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                              placeholder="8.7"
+                            />
                           </div>
                         </div>
-                      </motion.div>
-                    )}
-                  </div>
+                      </div>
 
-                  {/* Action Buttons - Fixed at bottom */}
-                  <div className="flex gap-3 pt-6 border-t border-slate-200 bg-white">
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      type="submit"
-                      className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-xl hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
-                    >
-                      <Save className="w-5 h-5" />
-                      {editingItem ? 'Ürün Güncelle' : 'Ürün Ekle'}
-                    </motion.button>
-                    
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
+                      {/* Allergens */}
+                      <div>
+                        <h4 className="font-semibold text-gray-900 mb-4">Alerjenler</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          {allergenOptions.map(allergen => (
+                            <label
+                              key={allergen}
+                              className="flex items-center space-x-2 p-3 bg-red-50 rounded-lg hover:bg-red-100 cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={formData.allergens.includes(allergen)}
+                                onChange={(e) => {
+                                  const newAllergens = e.target.checked
+                                    ? [...formData.allergens, allergen]
+                                    : formData.allergens.filter(a => a !== allergen)
+                                  handleFormChange('allergens', newAllergens)
+                                }}
+                                className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                              />
+                              <span className="text-sm text-gray-700 capitalize">{allergen}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Dietary Info */}
+                      <div>
+                        <h4 className="font-semibold text-gray-900 mb-4">Diyet Özellikleri</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {[
+                            { key: 'isVegan', label: 'Vegan', color: 'green' },
+                            { key: 'isVegetarian', label: 'Vejetaryen', color: 'emerald' },
+                            { key: 'isGlutenFree', label: 'Glutensiz', color: 'yellow' },
+                            { key: 'isKeto', label: 'Keto', color: 'purple' },
+                            { key: 'isLowCarb', label: 'Düşük Karbonhidrat', color: 'blue' }
+                          ].map(diet => (
+                            <label
+                              key={diet.key}
+                              className={`flex items-center justify-between p-4 bg-${diet.color}-50 rounded-lg hover:bg-${diet.color}-100 cursor-pointer border border-${diet.color}-200`}
+                            >
+                              <span className={`text-sm font-medium text-${diet.color}-800`}>
+                                {diet.label}
+                              </span>
+                              <input
+                                type="checkbox"
+                                checked={formData.dietaryInfo[diet.key]}
+                                onChange={(e) => handleFormChange(`dietaryInfo.${diet.key}`, e.target.checked)}
+                                className={`rounded border-gray-300 text-${diet.color}-600 focus:ring-${diet.color}-500`}
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Submit Button */}
+                <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
+                  <div className="flex space-x-3">
+                    <button
                       type="button"
-                      onClick={resetForm}
-                      className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-all duration-200"
+                      onClick={closeModal}
+                      className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-medium"
                     >
                       İptal
-                    </motion.button>
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white px-6 py-3 rounded-xl hover:shadow-lg transition-all font-medium"
+                    >
+                      {modalMode === 'edit' ? 'Güncelle' : 'Ekle'}
+                    </button>
                   </div>
-                </form>
-              </div>
+                </div>
+              </form>
             </motion.div>
           </motion.div>
         )}

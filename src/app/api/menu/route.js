@@ -1,161 +1,164 @@
-// src/app/api/menu/route.js - Düzeltilmiş versiyon
 import { NextResponse } from 'next/server'
 import clientPromise from '@/lib/mongodb'
+import { ObjectId } from 'mongodb'
 
-// Yardımcı: Kategori ismini slug'a çevir
-function toCategoryId(name) {
-  const base = String(name ?? 'Diğer').trim().toLowerCase()
-  return base
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '')
-    || 'diger'
-}
-
-// Yardımcı: Sayıyı güvenle parse et
-function toNumber(val, fallback = 0) {
-  const n = typeof val === 'number' ? val : parseFloat(String(val).replace(',', '.'))
-  return Number.isFinite(n) ? n : fallback
-}
-
-// GET - Menü verilerini getir (categories, menuItems VE ingredients döner)
-export async function GET() {
+// GET - Müşteri menüsü (filtreleme destekli)
+export async function GET(request) {
   try {
     const client = await clientPromise
     const db = client.db('restaurant-qr')
-
-    // Menü öğelerini çek
-    const menuItemsRaw = await db.collection('menu').find({}).toArray()
-
-    // Malzemeleri çek - ARTIK BU EKLENDİ!
-    const ingredientsRaw = await db.collection('ingredients').find({}).toArray()
-
-    // Kategori kümesini topla
-    const categorySet = new Map()
-    menuItemsRaw.forEach((doc) => {
-      const catName = doc?.category ?? 'Diğer'
-      const id = toCategoryId(catName)
-      if (!categorySet.has(catName)) {
-        categorySet.set(catName, { id, name: catName })
+    
+    const { searchParams } = new URL(request.url)
+    
+    // Query parameters
+    const categoryId = searchParams.get('categoryId')
+    const subcategoryId = searchParams.get('subcategoryId')
+    const categorySlug = searchParams.get('categorySlug')
+    const subcategorySlug = searchParams.get('subcategorySlug')
+    const availableOnly = searchParams.get('availableOnly') !== 'false' // Default true
+    const featured = searchParams.get('featured')
+    const search = searchParams.get('search')
+    
+    // Filter oluştur
+    const filter = {}
+    
+    // Availability filtreleme (default olarak sadece müsait ürünler)
+    if (availableOnly) {
+      filter.available = { $ne: false }
+    }
+    
+    // Kategori filtreleme
+    if (categoryId) {
+      filter.categoryId = categoryId
+    } else if (categorySlug) {
+      // Slug ile kategori bul
+      const category = await db.collection('categories')
+        .findOne({ slug: categorySlug, isActive: { $ne: false } })
+      
+      if (category) {
+        filter.categoryId = category._id.toString()
       }
-    })
-
-    // Categories çıktısı
-    const categories = Array.from(categorySet.values())
-
-    // Ingredients çıktısı - ID'leri normalize et
-    const ingredients = ingredientsRaw.map((doc) => ({
-      id: String(doc._id),        // Hem id hem _id olarak kullanılabilsin
-      _id: String(doc._id),
-      name: doc.name,
-      category: doc.category,
-      allergens: doc.allergens || [],
-      isVegetarian: doc.isVegetarian || false,
-      isVegan: doc.isVegan || false,
-      isGlutenFree: doc.isGlutenFree || false,
-      extraPrice: doc.extraPrice || 0
-    }))
-
-    // MenuItems çıktısı
-    const menuItems = menuItemsRaw.map((doc) => {
-      const catName = doc?.category ?? 'Diğer'
-      const categoryId = toCategoryId(catName)
-
-      const cookingTime = doc?.cookingTime ?? null
-      const spicyLevel = toNumber(doc?.spicyLevel ?? 0, 0)
-      const dietaryInfo = doc?.dietaryInfo ?? null
-      const nutritionInfo = doc?.nutritionInfo ?? null
-      const customizations = doc?.customizations ?? { removable: [], extras: [] }
-      const allergens = Array.isArray(doc?.allergens) ? doc.allergens : []
-
+    }
+    
+    // Alt kategori filtreleme
+    if (subcategoryId) {
+      filter.subcategoryId = subcategoryId
+    } else if (subcategorySlug) {
+      // Slug ile alt kategori bul
+      const subcategory = await db.collection('categories')
+        .findOne({ slug: subcategorySlug, isActive: { $ne: false } })
+      
+      if (subcategory) {
+        filter.subcategoryId = subcategory._id.toString()
+      }
+    }
+    
+    // Featured filtreleme
+    if (featured === 'true') {
+      filter.featured = true
+    }
+    
+    // Arama filtreleme
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ]
+    }
+    
+    console.log('Menu filter:', filter) // Debug için
+    
+    // Menü öğelerini getir
+    const menuItems = await db.collection('menu')
+      .find(filter)
+      .sort({ featured: -1, sortOrder: 1, name: 1 })
+      .toArray()
+    
+    // Kategorileri getir (menu item'ları zenginleştirmek için)
+    const categories = await db.collection('categories')
+      .find({ isActive: { $ne: false } })
+      .toArray()
+    
+    // Malzemeleri getir
+    const ingredients = await db.collection('ingredients')
+      .find({})
+      .toArray()
+    
+    // ID'leri string'e çevir ve zenginleştir
+    const formattedItems = menuItems.map(item => {
+      // Kategori bilgilerini ekle
+      const category = categories.find(cat => cat._id.toString() === item.categoryId)
+      const subcategory = item.subcategoryId 
+        ? categories.find(cat => cat._id.toString() === item.subcategoryId)
+        : null
+      
+      // Malzeme bilgilerini ekle
+      const itemIngredients = (item.ingredients || []).map(ingredientId => {
+        return ingredients.find(ing => ing._id.toString() === ingredientId)
+      }).filter(Boolean)
+      
       return {
-        id: String(doc._id),
-        _id: String(doc._id),         // Hem id hem _id
-        name: doc?.name ?? 'Ürün',
-        description: doc?.description ?? '',
-        price: toNumber(doc?.price, 0),
-        image: doc?.image || null,
-        allergens,
-        available: doc?.available !== false,
-        categoryId,
-        cookingTime,
-        spicyLevel,
-        dietaryInfo,
-        nutritionInfo,
-        customizations,
+        ...item,
+        id: item._id.toString(),
+        _id: undefined,
+          price: parseFloat(item.price) || 0, // Bu satırı ekle
+        category: category ? {
+          id: category._id.toString(),
+          name: category.name,
+          slug: category.slug
+        } : null,
+        subcategory: subcategory ? {
+          id: subcategory._id.toString(), 
+          name: subcategory.name,
+          slug: subcategory.slug
+        } : null,
+        ingredients: itemIngredients.map(ing => ({
+          id: ing._id.toString(),
+          name: ing.name,
+          category: ing.category,
+          allergens: ing.allergens || [],
+          isVegan: ing.isVegan || false,
+          isVegetarian: ing.isVegetarian || false,
+          isGlutenFree: ing.isGlutenFree || false
+        }))
       }
     })
-
-    // ÖNEMLİ: Artık ingredients de döndürülüyor!
+    
+    // Kategorileri grupla
+    const categoryGroups = {}
+    formattedItems.forEach(item => {
+      if (item.category) {
+        const catId = item.category.id
+        if (!categoryGroups[catId]) {
+          categoryGroups[catId] = {
+            category: item.category,
+            items: []
+          }
+        }
+        categoryGroups[catId].items.push(item)
+      }
+    })
+    
     return NextResponse.json({
       success: true,
-      categories,
-      menuItems,
-      ingredients    // BU EKSİKTİ!
+      items: formattedItems,
+      categoryGroups: Object.values(categoryGroups),
+      total: formattedItems.length,
+      filter: {
+        categoryId,
+        subcategoryId,
+        categorySlug,
+        subcategorySlug,
+        availableOnly,
+        featured,
+        search
+      }
     })
-
+    
   } catch (error) {
-    console.error('Menu GET error:', error)
+    console.error('Customer Menu GET error:', error)
     return NextResponse.json(
-      { success: false, error: 'Menü verileri alınamadı' },
-      { status: 500 }
-    )
-  }
-}
-
-// POST - Yeni menü öğesi ekle (Admin)
-export async function POST(request) {
-  try {
-    const client = await clientPromise
-    const db = client.db('restaurant-qr')
-
-    const data = await request.json()
-
-    // Zorunlu alan kontrolü
-    if (!data?.name || !data?.description || data?.price == null || !data?.category) {
-      return NextResponse.json(
-        { success: false, error: 'Eksik bilgiler (name, description, price, category zorunlu)' },
-        { status: 400 }
-      )
-    }
-
-    // Normalize
-    const price = toNumber(data.price, NaN)
-    if (!Number.isFinite(price) || price < 0) {
-      return NextResponse.json(
-        { success: false, error: 'Geçersiz fiyat' },
-        { status: 400 }
-      )
-    }
-
-    const menuItem = {
-      name: String(data.name),
-      description: String(data.description),
-      price,
-      category: String(data.category),
-      image: data.image || null,
-      allergens: Array.isArray(data.allergens) ? data.allergens : [],
-      available: data.available === false ? false : true,
-      // Opsiyonel alanlar
-      cookingTime: data.cookingTime ?? null,
-      spicyLevel: toNumber(data.spicyLevel ?? 0, 0),
-      dietaryInfo: data.dietaryInfo ?? null,
-      nutritionInfo: data.nutritionInfo ?? null,
-      customizations: data.customizations ?? { removable: [], extras: [] },
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }
-
-    const result = await db.collection('menu').insertOne(menuItem)
-
-    return NextResponse.json({
-      success: true,
-      id: result.insertedId,
-      message: 'Menü öğesi başarıyla eklendi',
-    })
-  } catch (error) {
-    console.error('Menu POST error:', error)
-    return NextResponse.json(
-      { success: false, error: 'Menü öğesi eklenemedi' },
+      { success: false, error: 'Menü alınamadı' },
       { status: 500 }
     )
   }
