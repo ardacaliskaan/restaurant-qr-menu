@@ -1,3 +1,5 @@
+// src/app/api/orders/route.js - Tam Dosya İçeriği
+
 import { NextResponse } from 'next/server'
 import clientPromise from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
@@ -17,7 +19,7 @@ import {
   getOrderDuration
 } from '@/lib/models/order'
 
-// GET - Orders listesi (advanced filtering & analytics)
+// GET - Orders listesi (masa bazlı gruplandırma ile)
 export async function GET(request) {
   try {
     const client = await clientPromise
@@ -33,6 +35,7 @@ export async function GET(request) {
     const includeStats = searchParams.get('stats') === 'true'
     const kitchenView = searchParams.get('kitchenView') === 'true'
     const analytics = searchParams.get('analytics') === 'true'
+    const groupByTable = searchParams.get('groupByTable') !== 'false' // Default true
     
     // Build filter
     const filter = buildOrderFilter({
@@ -83,22 +86,14 @@ export async function GET(request) {
       })
     }
     
-    // Regular pagination
-    const skip = (page - 1) * limit
-    
-    // Get orders with pagination
-    const [orders, totalCount] = await Promise.all([
-      db.collection('orders')
-        .find(filter)
-        .sort(sort)
-        .skip(skip)
-        .limit(limit)
-        .toArray(),
-      db.collection('orders').countDocuments(filter)
-    ])
+    // Get all orders (without pagination for grouping)
+    const allOrders = await db.collection('orders')
+      .find(filter)
+      .sort(sort)
+      .toArray()
     
     // Format orders
-    const formattedOrders = orders.map(order => ({
+    const formattedOrders = allOrders.map(order => ({
       ...order,
       id: order._id.toString(),
       _id: undefined,
@@ -109,11 +104,21 @@ export async function GET(request) {
       success: true,
       orders: formattedOrders,
       pagination: {
-        total: totalCount,
-        page,
-        limit,
-        pages: Math.ceil(totalCount / limit)
+        total: formattedOrders.length,
+        page: 1,
+        limit: formattedOrders.length,
+        pages: 1
       }
+    }
+    
+    // 🔥 MASA BAZLI GRUPLAMA - YENİ ÖZELLİK!
+    if (groupByTable) {
+      const tableGroups = groupOrdersByTable(formattedOrders)
+      response.tableGroups = tableGroups
+      response.orders = tableGroups // Ana liste olarak masa gruplarını döndür
+      response.originalOrders = formattedOrders // Orijinal siparişleri de sakla
+      
+      console.log(`📊 Grouped ${formattedOrders.length} orders into ${tableGroups.length} table groups`)
     }
     
     // Include statistics
@@ -123,11 +128,11 @@ export async function GET(request) {
     
     // Include analytics
     if (analytics) {
-      const allOrders = await db.collection('orders')
+      const allOrdersForAnalytics = await db.collection('orders')
         .find({ createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } }) // Last 30 days
         .toArray()
       
-      const formattedAllOrders = allOrders.map(order => ({
+      const formattedAllOrders = allOrdersForAnalytics.map(order => ({
         ...order,
         id: order._id.toString()
       }))
@@ -148,6 +153,112 @@ export async function GET(request) {
       { status: 500 }
     )
   }
+}
+
+// 🍽️ MASA BAZLI GRUPLAMA FONKSİYONU
+function groupOrdersByTable(orders) {
+  const tableMap = new Map()
+  
+  orders.forEach(order => {
+    const tableKey = order.tableNumber || order.tableId || 'unknown'
+    
+    if (!tableMap.has(tableKey)) {
+      tableMap.set(tableKey, {
+        tableNumber: order.tableNumber,
+        tableId: order.tableId,
+        orders: [],
+        totalAmount: 0,
+        itemCount: 0,
+        customerCount: 0, // Kaç farklı sipariş (kişi)
+        status: 'pending', // Genel masa durumu
+        createdAt: order.createdAt, // İlk sipariş zamanı
+        lastOrderAt: order.createdAt, // Son sipariş zamanı
+        estimatedTime: 0,
+        priority: 'normal',
+        assignedStaff: order.assignedStaff,
+        allStatuses: [],
+        customerNotes: []
+      })
+    }
+    
+    const tableGroup = tableMap.get(tableKey)
+    
+    // Siparişi gruba ekle
+    tableGroup.orders.push(order)
+    tableGroup.totalAmount += order.totalAmount || 0
+    tableGroup.itemCount += order.items?.length || 0
+    tableGroup.customerCount += 1
+    
+    // En son sipariş zamanını güncelle
+    if (new Date(order.createdAt) > new Date(tableGroup.lastOrderAt)) {
+      tableGroup.lastOrderAt = order.createdAt
+    }
+    
+    // En eski sipariş zamanını güncelle
+    if (new Date(order.createdAt) < new Date(tableGroup.createdAt)) {
+      tableGroup.createdAt = order.createdAt
+    }
+    
+    // Durum prioritesi belirleme
+    const statusPriority = {
+      'pending': 1,
+      'confirmed': 2, 
+      'preparing': 3,
+      'ready': 4,
+      'delivered': 5,
+      'completed': 6,
+      'cancelled': 0
+    }
+    
+    const currentPriority = statusPriority[tableGroup.status] || 0
+    const orderPriority = statusPriority[order.status] || 0
+    
+    // En yüksek öncelikli durumu masa durumu yap
+    if (orderPriority > currentPriority) {
+      tableGroup.status = order.status
+    }
+    
+    // Tüm durumları topla
+    if (!tableGroup.allStatuses.includes(order.status)) {
+      tableGroup.allStatuses.push(order.status)
+    }
+    
+    // Tahmini süreyi güncelle (en uzun süre)
+    if (order.estimatedTime > tableGroup.estimatedTime) {
+      tableGroup.estimatedTime = order.estimatedTime
+    }
+    
+    // Öncelik seviyesini güncelle
+    const priorityLevels = { 'low': 1, 'normal': 2, 'high': 3, 'urgent': 4 }
+    if ((priorityLevels[order.priority] || 2) > (priorityLevels[tableGroup.priority] || 2)) {
+      tableGroup.priority = order.priority
+    }
+    
+    // Müşteri notlarını topla
+    if (order.customerNotes && !tableGroup.customerNotes.includes(order.customerNotes)) {
+      tableGroup.customerNotes.push(order.customerNotes)
+    }
+  })
+  
+  // Map'i array'e çevir ve sırala
+  const tableGroups = Array.from(tableMap.values()).map(group => ({
+    ...group,
+    id: `table-${group.tableNumber}-group`, // Unique ID
+    orderNumber: `Masa ${group.tableNumber}`, // Display name
+    isTableGroup: true, // Bu bir masa grubu olduğunu belirt
+    customerNotes: group.customerNotes.join(' | '), // Notları birleştir
+    // Masa için özet istatistikler
+    summary: {
+      pendingCount: group.allStatuses.filter(s => s === 'pending').length,
+      preparingCount: group.allStatuses.filter(s => s === 'preparing').length,
+      readyCount: group.allStatuses.filter(s => s === 'ready').length,
+      completedCount: group.allStatuses.filter(s => s === 'completed').length,
+      cancelledCount: group.allStatuses.filter(s => s === 'cancelled').length
+    }
+  }))
+  
+  // En son sipariş zamanına göre sırala
+  return tableGroups.sort((a, b) => new Date(b.lastOrderAt) - new Date(a.lastOrderAt))
 }
 
 // POST - Yeni sipariş oluştur
@@ -292,7 +403,7 @@ export async function POST(request) {
   }
 }
 
-// PUT - Sipariş güncelle (status, payment, etc.)
+// PUT - Sipariş güncelle (status, payment, table operations)
 export async function PUT(request) {
   try {
     const client = await clientPromise
@@ -301,6 +412,90 @@ export async function PUT(request) {
     const data = await request.json()
     const { id, action, ...updateData } = data
     
+    // 🏢 MASA KAPATMA ÖZELLİĞİ - YENİ!
+    if (action === 'closeTable') {
+      const { tableNumber } = updateData
+      
+      if (!tableNumber) {
+        return NextResponse.json(
+          { success: false, error: 'Masa numarası gerekli' },
+          { status: 400 }
+        )
+      }
+      
+      console.log(`🏢 Closing table ${tableNumber}...`) // Debug
+      
+      // O masadaki tüm aktif siparişleri bul
+      const activeOrders = await db.collection('orders')
+        .find({
+          $or: [
+            { tableNumber: parseInt(tableNumber) },
+            { tableId: tableNumber.toString() }
+          ],
+          status: { 
+            $nin: [ORDER_STATUSES.COMPLETED, ORDER_STATUSES.CANCELLED] 
+          }
+        })
+        .toArray()
+      
+      console.log(`📦 Found ${activeOrders.length} active orders for table ${tableNumber}`) // Debug
+      
+      if (activeOrders.length === 0) {
+        return NextResponse.json(
+          { success: false, error: 'Bu masada aktif sipariş bulunamadı' },
+          { status: 404 }
+        )
+      }
+      
+      // Tüm aktif siparişleri 'completed' durumuna getir
+      const bulkUpdateResult = await db.collection('orders').updateMany(
+        {
+          $or: [
+            { tableNumber: parseInt(tableNumber) },
+            { tableId: tableNumber.toString() }
+          ],
+          status: { 
+            $nin: [ORDER_STATUSES.COMPLETED, ORDER_STATUSES.CANCELLED] 
+          }
+        },
+        {
+          $set: {
+            status: ORDER_STATUSES.COMPLETED,
+            [`timestamps.${ORDER_STATUSES.COMPLETED}`]: new Date(),
+            updatedAt: new Date(),
+            closedByTable: true // Masa kapatma ile tamamlandığını belirt
+          }
+        }
+      )
+      
+      console.log(`✅ Updated ${bulkUpdateResult.modifiedCount} orders to completed`) // Debug
+      
+      // Masanın durumunu 'empty' yap
+      await db.collection('tables').updateOne(
+        { 
+          $or: [
+            { number: parseInt(tableNumber) },
+            { _id: tableNumber.length === 24 ? new ObjectId(tableNumber) : null }
+          ].filter(Boolean)
+        },
+        { 
+          $set: { 
+            status: 'empty',
+            lastClosedAt: new Date()
+          }
+        }
+      )
+      
+      console.log(`🏢 Table ${tableNumber} status updated to empty`) // Debug
+      
+      return NextResponse.json({
+        success: true,
+        message: `Masa ${tableNumber} başarıyla kapatıldı`,
+        completedOrders: bulkUpdateResult.modifiedCount
+      })
+    }
+    
+    // Normal sipariş işlemleri için ID gerekli
     if (!id) {
       return NextResponse.json(
         { success: false, error: 'Sipariş ID gerekli' },
