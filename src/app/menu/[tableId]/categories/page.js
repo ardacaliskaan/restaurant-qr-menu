@@ -1,9 +1,118 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
-import { ArrowLeft, Coffee, Utensils, Cookie, Wine, Gift, ChevronRight } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ArrowLeft, Coffee, Utensils, Cookie, Wine, Gift, ChevronRight, Sparkles, Clock, GraduationCap, Tag, Heart, Instagram, Facebook, Twitter } from 'lucide-react'
 import Image from 'next/image'
+
+// Footer Component
+function MenuFooter() {
+  const mottos = [
+    {
+      icon: GraduationCap,
+      title: "Öğrenci Dostu",
+      description: "Özel fiyatlarla her zaman yanınızdayız"
+    },
+    {
+      icon: Tag,
+      title: "Kampanyanın Tek Adresi",
+      description: "Her gün yeni fırsatlar"
+    },
+    {
+      icon: Heart,
+      title: "Kaliteli Lezzetler",
+      description: "Taze malzeme, özenli servis"
+    }
+  ]
+
+  const socialLinks = [
+    { icon: Instagram, href: "#", label: "Instagram" },
+    { icon: Facebook, href: "#", label: "Facebook" },
+    { icon: Twitter, href: "#", label: "Twitter" }
+  ]
+
+  return (
+    <footer className="relative z-10 mt-16 border-t border-emerald-200 bg-white/80 backdrop-blur-md">
+      <div className="max-w-7xl mx-auto px-6 py-12">
+        {/* Mottos Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+          {mottos.map((motto, index) => {
+            const IconComponent = motto.icon
+            return (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="flex flex-col items-center text-center"
+              >
+                <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
+                  <IconComponent className="w-7 h-7 text-white" />
+                </div>
+                <h3 className="text-lg font-bold text-emerald-900 mb-2">
+                  {motto.title}
+                </h3>
+                <p className="text-sm text-emerald-600 font-medium">
+                  {motto.description}
+                </p>
+              </motion.div>
+            )
+          })}
+        </div>
+
+        {/* Divider */}
+        <div className="border-t border-emerald-200 my-8"></div>
+
+        {/* Bottom Section */}
+        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+          {/* Logo & Copyright */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-emerald-600 to-teal-700 rounded-xl flex items-center justify-center">
+              <Coffee className="w-6 h-6 text-white" />
+            </div>
+            <div className="text-emerald-800">
+              <p className="font-bold text-lg">MEVA CAFE</p>
+              <p className="text-xs text-emerald-600">© 2025 Tüm hakları saklıdır</p>
+            </div>
+          </div>
+
+          {/* Social Links */}
+          <div className="flex items-center gap-3">
+            {socialLinks.map((social, index) => {
+              const IconComponent = social.icon
+              return (
+                <motion.a
+                  key={index}
+                  href={social.href}
+                  whileHover={{ scale: 1.1, y: -3 }}
+                  whileTap={{ scale: 0.9 }}
+                  className="w-10 h-10 bg-emerald-100 hover:bg-emerald-200 rounded-xl flex items-center justify-center transition-colors duration-200"
+                  aria-label={social.label}
+                >
+                  <IconComponent className="w-5 h-5 text-emerald-700" />
+                </motion.a>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Tagline */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="text-center mt-8"
+        >
+          <p className="text-emerald-600 text-sm font-medium flex items-center justify-center gap-2">
+            <Coffee className="w-4 h-4" />
+            Sevgiyle Hazırlandı
+            <Heart className="w-4 h-4 fill-current" />
+          </p>
+        </motion.div>
+      </div>
+    </footer>
+  )
+}
 
 export default function CategoriesPage({ params }) {
   const [categories, setCategories] = useState([])
@@ -11,7 +120,6 @@ export default function CategoriesPage({ params }) {
   const [tableId, setTableId] = useState(null)
   const router = useRouter()
 
-  // Default icons for categories
   const categoryIcons = {
     'kahvaltı': Coffee,
     'kahvaltılık': Coffee,
@@ -23,6 +131,8 @@ export default function CategoriesPage({ params }) {
     'tatlılar': Cookie,
     'içecek': Wine,
     'içecekler': Wine,
+    'kahve': Coffee,
+    'kahveler': Coffee,
     'kampanya': Gift,
     'kampanyalar': Gift,
     'default': Utensils
@@ -48,12 +158,11 @@ export default function CategoriesPage({ params }) {
       const data = await response.json()
       
       if (data.success) {
-        // Sadece ana kategorileri al (parentId olmayan)
         const mainCategories = data.flatCategories?.filter(cat => !cat.parentId && cat.isActive) || []
         setCategories(mainCategories)
       }
     } catch (error) {
-      console.error('Kategoriler yüklenirken hata:', error)
+      console.error('Error loading categories:', error)
     } finally {
       setLoading(false)
     }
@@ -66,7 +175,6 @@ export default function CategoriesPage({ params }) {
   }
 
   const handleCategoryClick = (category) => {
-    // Alt kategori sayfasına yönlendir
     router.push(`/menu/${tableId}/${category.slug}`)
   }
 
@@ -76,126 +184,231 @@ export default function CategoriesPage({ params }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-red-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-amber-200 border-t-amber-500 rounded-full animate-spin mx-auto"></div>
-          <p className="text-amber-600 mt-4 font-medium">Kategoriler yükleniyor...</p>
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-green-100">
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute inset-0 opacity-30">
+            <div className="absolute top-0 -left-4 w-72 h-72 bg-emerald-300 rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
+            <div className="absolute top-0 -right-4 w-72 h-72 bg-teal-300 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
+            <div className="absolute -bottom-8 left-20 w-72 h-72 bg-green-300 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-4000"></div>
+          </div>
+        </div>
+
+        <div className="relative flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+              className="w-20 h-20 border-4 border-emerald-300 border-t-emerald-600 rounded-full mx-auto mb-6"
+            />
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-emerald-700 text-lg font-medium"
+            >
+              Menümüz hazırlanıyor...
+            </motion.p>
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-red-50">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-amber-100 shadow-sm">
-        <div className="flex items-center justify-between p-4">
-          <button
-            onClick={handleBackClick}
-            className="p-2 hover:bg-amber-100 rounded-full transition-colors"
-          >
-            <ArrowLeft className="w-6 h-6 text-amber-600" />
-          </button>
-          
-          <div className="text-center">
-            <h1 className="text-xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
-              MEVA CAFE
-            </h1>
-            <p className="text-sm text-amber-600 font-medium">Masa {tableId}</p>
-          </div>
-          
-          <div className="w-10"></div> {/* Spacer for center alignment */}
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-green-100 relative overflow-hidden">
+      {/* Animated Background Blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 opacity-30">
+          <div className="absolute top-0 -left-4 w-96 h-96 bg-emerald-300 rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
+          <div className="absolute top-0 -right-4 w-96 h-96 bg-teal-300 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-8 left-20 w-96 h-96 bg-green-300 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-4000"></div>
         </div>
       </div>
 
-      {/* Categories Grid */}
-      <div className="p-4 space-y-4">
+      {/* Header */}
+      <motion.div 
+        initial={{ y: -100 }}
+        animate={{ y: 0 }}
+        className="sticky top-0 z-20 backdrop-blur-xl bg-white/90 border-b border-emerald-200 shadow-lg"
+      >
+        <div className="flex items-center justify-between p-4 max-w-7xl mx-auto">
+          <motion.button
+            whileHover={{ scale: 1.1, x: -5 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={handleBackClick}
+            className="p-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 rounded-xl shadow-lg transition-all duration-300"
+          >
+            <ArrowLeft className="w-6 h-6 text-white" />
+          </motion.button>
+          
+          <div className="text-center">
+            <motion.h1 
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="text-2xl font-black bg-gradient-to-r from-emerald-700 via-teal-700 to-green-700 bg-clip-text text-transparent"
+            >
+              MEVA CAFE
+            </motion.h1>
+            <motion.p 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="text-emerald-600 text-sm font-semibold flex items-center justify-center gap-2 mt-1"
+            >
+              <Sparkles className="w-4 h-4" />
+              Masa {tableId}
+            </motion.p>
+          </div>
+          
+          <div className="w-12"></div>
+        </div>
+      </motion.div>
+
+      {/* Main Content */}
+      <div className="relative z-10 p-6 max-w-7xl mx-auto">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="text-center mb-6"
+          transition={{ duration: 0.8 }}
+          className="text-center mb-8 mt-6"
         >
-          <h2 className="text-2xl font-bold text-amber-700 mb-2">Menümüzü Keşfedin</h2>
-          <p className="text-amber-600">İstediğiniz kategoriyi seçin</p>
+          <h2 className="text-3xl md:text-4xl font-black text-emerald-800 mb-3">
+            Menümüzü Keşfedin
+          </h2>
+          <p className="text-emerald-600 text-lg font-medium flex items-center justify-center gap-2">
+            <Clock className="w-5 h-5" />
+            Taze, lezzetli ve sizin için hazır
+          </p>
         </motion.div>
 
         {categories.length === 0 ? (
-          <div className="text-center py-12">
-            <Coffee className="w-16 h-16 text-amber-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-amber-600 mb-2">Henüz kategori eklenmemiş</h3>
-            <p className="text-amber-500">Lütfen daha sonra tekrar deneyin</p>
-          </div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center py-20"
+          >
+            <div className="inline-block p-8 bg-white rounded-3xl border border-emerald-200 shadow-xl">
+              <Coffee className="w-20 h-20 text-emerald-300 mx-auto mb-6" />
+              <h3 className="text-2xl font-bold text-emerald-800 mb-3">Henüz Kategori Eklenmemiş</h3>
+              <p className="text-emerald-600 text-lg">Lütfen daha sonra tekrar deneyin</p>
+            </div>
+          </motion.div>
         ) : (
-          <div className="space-y-4">
-            {categories.map((category, index) => {
-              const IconComponent = getCategoryIcon(category.name)
-              
-              return (
-                <motion.div
-                  key={category.id}
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
-                  onClick={() => handleCategoryClick(category)}
-                  className="relative overflow-hidden bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer group active:scale-95"
-                >
-                  {/* Background Image */}
-                  {category.image && (
-                    <div className="absolute inset-0 opacity-10 group-hover:opacity-20 transition-opacity duration-300">
-                      <Image
-                        src={category.image}
-                        alt={category.name}
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                  )}
-                  
-                  {/* Gradient Overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-amber-50/50 to-orange-50/50"></div>
-                  
-                  {/* Content */}
-                  <div className="relative z-10 p-6 flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-14 h-14 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
-                        <IconComponent className="w-7 h-7 text-white" />
+          <div className="grid grid-cols-1 gap-5">
+            <AnimatePresence mode="popLayout">
+              {categories.map((category, index) => {
+                const IconComponent = getCategoryIcon(category.name)
+                
+                return (
+                  <motion.div
+                    key={category.id}
+                    initial={{ opacity: 0, y: 50 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ 
+                      duration: 0.5, 
+                      delay: index * 0.1,
+                      type: "spring",
+                      stiffness: 100
+                    }}
+                    whileHover={{ y: -8 }}
+                    onClick={() => handleCategoryClick(category)}
+                    className="group cursor-pointer"
+                  >
+                    <div className="relative overflow-hidden rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 h-52">
+                      {category.image ? (
+                        <div className="absolute inset-0">
+                          <Image
+                            src={category.image}
+                            alt={category.name}
+                            fill
+                            className="object-cover transition-transform duration-700 group-hover:scale-110"
+                            priority={index < 2}
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-r from-emerald-50/95 via-teal-50/90 to-emerald-50/85 group-hover:from-emerald-50/90 group-hover:via-teal-50/85 group-hover:to-emerald-50/80 transition-all duration-500" />
+                          <div className="absolute inset-0 bg-gradient-to-br from-emerald-200/30 via-transparent to-teal-200/30 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                        </div>
+                      ) : (
+                        <div className="absolute inset-0 bg-gradient-to-br from-emerald-100 via-teal-100 to-green-100" />
+                      )}
+
+                      <div className="relative h-full flex flex-col justify-between p-6">
+                        <div className="flex items-start justify-between">
+                          <motion.div
+                            whileHover={{ rotate: 360, scale: 1.1 }}
+                            transition={{ duration: 0.6 }}
+                            className="p-3 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl shadow-xl"
+                          >
+                            <IconComponent className="w-7 h-7 text-white" />
+                          </motion.div>
+
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ delay: 0.3 + index * 0.1 }}
+                            className="px-4 py-2 bg-emerald-200/80 backdrop-blur-md rounded-full border border-emerald-300"
+                          >
+                            <span className="text-emerald-700 font-bold text-sm">Yeni</span>
+                          </motion.div>
+                        </div>
+
+                        <div>
+                          <div className="flex items-end justify-between gap-4">
+                            <div className="flex-1">
+                              <h3 className="text-3xl md:text-4xl font-black text-emerald-900 mb-2 drop-shadow-sm group-hover:text-emerald-700 transition-colors duration-300">
+                                {category.name}
+                              </h3>
+                              {category.description && (
+                                <p className="text-emerald-700 text-base font-medium leading-relaxed">
+                                  {category.description}
+                                </p>
+                              )}
+                            </div>
+
+                            <motion.div
+                              whileHover={{ x: 8 }}
+                              className="flex-shrink-0 p-3 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl shadow-lg group-hover:shadow-emerald-500/50 transition-all duration-300"
+                            >
+                              <ChevronRight className="w-6 h-6 text-white" />
+                            </motion.div>
+                          </div>
+                        </div>
                       </div>
-                      
-                      <div>
-                        <h3 className="text-xl font-bold text-amber-700 group-hover:text-amber-800 transition-colors">
-                          {category.name}
-                        </h3>
-                        {category.description && (
-                          <p className="text-amber-600 text-sm mt-1 max-w-xs">
-                            {category.description}
-                          </p>
-                        )}
-                      </div>
+
+                      <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
                     </div>
-                    
-                    <div className="flex items-center">
-                      <ChevronRight className="w-6 h-6 text-amber-500 group-hover:text-amber-600 group-hover:translate-x-1 transition-all duration-300" />
-                    </div>
-                  </div>
-                  
-                  {/* Hover Effect */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-amber-400/0 to-orange-400/0 group-hover:from-amber-400/5 group-hover:to-orange-400/5 transition-all duration-300"></div>
-                </motion.div>
-              )
-            })}
+                  </motion.div>
+                )
+              })}
+            </AnimatePresence>
           </div>
         )}
       </div>
 
       {/* Footer */}
-      <div className="text-center py-8 px-4">
-        <div className="inline-flex items-center justify-center space-x-2 text-amber-600">
-          <Coffee className="w-4 h-4" />
-          <span className="text-sm font-medium">Sevgiyle Hazırlanmış</span>
-          <Coffee className="w-4 h-4" />
-        </div>
-      </div>
+      <MenuFooter />
+
+      <style jsx>{`
+        @keyframes blob {
+          0%, 100% {
+            transform: translate(0, 0) scale(1);
+          }
+          33% {
+            transform: translate(30px, -50px) scale(1.1);
+          }
+          66% {
+            transform: translate(-20px, 20px) scale(0.9);
+          }
+        }
+        .animate-blob {
+          animation: blob 7s infinite;
+        }
+        .animation-delay-2000 {
+          animation-delay: 2s;
+        }
+        .animation-delay-4000 {
+          animation-delay: 4s;
+        }
+      `}</style>
     </div>
   )
 }
