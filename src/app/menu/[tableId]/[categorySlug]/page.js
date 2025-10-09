@@ -5,13 +5,113 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   ArrowLeft, Coffee, Thermometer, Snowflake, ChevronRight, Package, 
   Sparkles, Layers, GraduationCap, Tag, Heart, Instagram, Facebook, 
-  Twitter, Grid3x3, Plus, Minus, ShoppingCart, X, Flame, Trash2, Send
+  Twitter, Grid3x3, Plus, Minus, ShoppingCart, X, Flame, Trash2, Send, Check
 } from 'lucide-react'
 import Image from 'next/image'
 import toast from 'react-hot-toast'
-import MenuFooter from '@/components/MenuFooter'
 
+// Footer Component
+function MenuFooter() {
+  const mottos = [
+    {
+      icon: GraduationCap,
+      title: "Öğrenci Dostu",
+      description: "Özel fiyatlarla her zaman yanınızdayız"
+    },
+    {
+      icon: Tag,
+      title: "Kampanyanın Tek Adresi",
+      description: "Her gün yeni fırsatlar"
+    },
+    {
+      icon: Heart,
+      title: "Kaliteli Lezzetler",
+      description: "Taze malzeme, özenli servis"
+    }
+  ]
 
+  const socialLinks = [
+    { icon: Instagram, href: "#", label: "Instagram" },
+    { icon: Facebook, href: "#", label: "Facebook" },
+    { icon: Twitter, href: "#", label: "Twitter" }
+  ]
+
+  return (
+    <footer className="relative z-10 mt-16 border-t border-teal-200 bg-white/80 backdrop-blur-md">
+      <div className="max-w-7xl mx-auto px-6 py-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+          {mottos.map((motto, index) => {
+            const IconComponent = motto.icon
+            return (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="flex flex-col items-center text-center"
+              >
+                <div className="w-14 h-14 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
+                  <IconComponent className="w-7 h-7 text-white" />
+                </div>
+                <h3 className="text-lg font-bold text-teal-900 mb-2">
+                  {motto.title}
+                </h3>
+                <p className="text-sm text-teal-600 font-medium">
+                  {motto.description}
+                </p>
+              </motion.div>
+            )
+          })}
+        </div>
+
+        <div className="border-t border-teal-200 my-8"></div>
+
+        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-teal-600 to-cyan-700 rounded-xl flex items-center justify-center">
+              <Coffee className="w-6 h-6 text-white" />
+            </div>
+            <div className="text-teal-800">
+              <p className="font-bold text-lg">MEVA CAFE</p>
+              <p className="text-xs text-teal-600">© 2025 Tüm hakları saklıdır</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {socialLinks.map((social, index) => {
+              const IconComponent = social.icon
+              return (
+                <motion.a
+                  key={index}
+                  href={social.href}
+                  whileHover={{ scale: 1.1, y: -3 }}
+                  whileTap={{ scale: 0.9 }}
+                  className="w-10 h-10 bg-teal-100 hover:bg-teal-200 rounded-xl flex items-center justify-center transition-colors duration-200"
+                  aria-label={social.label}
+                >
+                  <IconComponent className="w-5 h-5 text-teal-700" />
+                </motion.a>
+              )
+            })}
+          </div>
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="text-center mt-8"
+        >
+          <p className="text-teal-600 text-sm font-medium flex items-center justify-center gap-2">
+            <Coffee className="w-4 h-4" />
+            Her Damla Özenle Hazırlanır
+            <Heart className="w-4 h-4 fill-current" />
+          </p>
+        </motion.div>
+      </div>
+    </footer>
+  )
+}
 
 export default function SubcategoriesPage({ params }) {
   const [subcategories, setSubcategories] = useState([])
@@ -39,10 +139,8 @@ export default function SubcategoriesPage({ params }) {
     'default': Package
   }
 
-  // Cart key for localStorage
   const getCartKey = () => `meva-cart-${tableId}`
 
-  // Load cart from localStorage
   useEffect(() => {
     if (tableId) {
       const savedCart = localStorage.getItem(getCartKey())
@@ -52,7 +150,6 @@ export default function SubcategoriesPage({ params }) {
     }
   }, [tableId])
 
-  // Save cart to localStorage
   useEffect(() => {
     if (tableId && cart.length >= 0) {
       localStorage.setItem(getCartKey(), JSON.stringify(cart))
@@ -145,12 +242,10 @@ export default function SubcategoriesPage({ params }) {
     setShowCartModal(false)
   }
 
-  // Add to cart
   const handleAddToCart = () => {
     const existingItem = cart.find(item => item.id === selectedProduct.id)
     
     if (existingItem) {
-      // Update quantity
       setCart(cart.map(item => 
         item.id === selectedProduct.id 
           ? { ...item, quantity: item.quantity + quantity }
@@ -158,7 +253,6 @@ export default function SubcategoriesPage({ params }) {
       ))
       toast.success(`${quantity}x ${selectedProduct.name} sepete eklendi!`)
     } else {
-      // Add new item
       setCart([...cart, {
         id: selectedProduct.id,
         name: selectedProduct.name,
@@ -172,7 +266,6 @@ export default function SubcategoriesPage({ params }) {
     closeProductModal()
   }
 
-  // Update cart item quantity
   const updateCartItemQuantity = (itemId, newQuantity) => {
     if (newQuantity <= 0) {
       removeFromCart(itemId)
@@ -184,24 +277,20 @@ export default function SubcategoriesPage({ params }) {
     ))
   }
 
-  // Remove from cart
   const removeFromCart = (itemId) => {
     setCart(cart.filter(item => item.id !== itemId))
     toast.success('Ürün sepetten kaldırıldı')
   }
 
-  // Clear cart
   const clearCart = () => {
     setCart([])
     toast.success('Sepet temizlendi')
   }
 
-  // Calculate total
   const getCartTotal = () => {
     return cart.reduce((total, item) => total + (item.price * item.quantity), 0)
   }
 
-  // Submit order
   const handleSubmitOrder = async () => {
     if (cart.length === 0) {
       toast.error('Sepetiniz boş!')
@@ -274,7 +363,6 @@ export default function SubcategoriesPage({ params }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-teal-50 via-cyan-50 to-emerald-100 relative overflow-hidden">
-      {/* Animated Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute inset-0 opacity-30">
           <div className="absolute top-0 -left-4 w-96 h-96 bg-teal-300 rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
@@ -283,7 +371,6 @@ export default function SubcategoriesPage({ params }) {
         </div>
       </div>
 
-      {/* Header */}
       <motion.div 
         initial={{ y: -100 }}
         animate={{ y: 0 }}
@@ -318,7 +405,6 @@ export default function SubcategoriesPage({ params }) {
             </motion.p>
           </div>
           
-          {/* Cart Button */}
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
@@ -339,9 +425,7 @@ export default function SubcategoriesPage({ params }) {
         </div>
       </motion.div>
 
-      {/* Main Content */}
       <div className="relative z-10 p-6 max-w-7xl mx-auto">
-        {/* Subcategories Section */}
         {subcategories.length > 0 && (
           <>
             <motion.div
@@ -435,7 +519,6 @@ export default function SubcategoriesPage({ params }) {
               </AnimatePresence>
             </div>
 
-            {/* Divider */}
             <div className="relative my-12">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t-2 border-teal-200"></div>
@@ -450,7 +533,6 @@ export default function SubcategoriesPage({ params }) {
           </>
         )}
 
-        {/* Products Section */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
@@ -526,12 +608,14 @@ export default function SubcategoriesPage({ params }) {
                         <span className="text-2xl font-black text-teal-700">
                           ₺{product.price?.toFixed(2)}
                         </span>
-                        <motion.div
-                          whileHover={{ scale: 1.1 }}
-                          className="bg-teal-100 text-teal-700 p-2 rounded-lg"
+                        <motion.button
+                          whileHover={{ scale: 1.05, x: 3 }}
+                          whileTap={{ scale: 0.95 }}
+                          className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
                         >
-                          <ShoppingCart className="w-5 h-5" />
-                        </motion.div>
+                          İleri
+                          <ChevronRight className="w-4 h-4" />
+                        </motion.button>
                       </div>
                     </div>
                   </div>
@@ -542,7 +626,6 @@ export default function SubcategoriesPage({ params }) {
         </motion.div>
       </div>
 
-      {/* Product Modal */}
       <AnimatePresence>
         {showProductModal && selectedProduct && (
           <motion.div
@@ -620,8 +703,8 @@ export default function SubcategoriesPage({ params }) {
                   onClick={handleAddToCart}
                   className="w-full bg-gradient-to-r from-teal-500 to-cyan-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-3"
                 >
-                  <ShoppingCart className="w-6 h-6" />
-                  Sepete Ekle - ₺{(selectedProduct.price * quantity).toFixed(2)}
+                  <Check className="w-6 h-6" />
+                  Onayla - ₺{(selectedProduct.price * quantity).toFixed(2)}
                 </button>
               </div>
             </motion.div>
@@ -629,7 +712,6 @@ export default function SubcategoriesPage({ params }) {
         )}
       </AnimatePresence>
 
-      {/* Cart Modal */}
       <AnimatePresence>
         {showCartModal && (
           <motion.div
@@ -647,7 +729,6 @@ export default function SubcategoriesPage({ params }) {
               onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
             >
-              {/* Cart Header */}
               <div className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white p-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -666,7 +747,6 @@ export default function SubcategoriesPage({ params }) {
                 </div>
               </div>
 
-              {/* Cart Items */}
               <div className="flex-1 overflow-y-auto p-6">
                 {cart.length === 0 ? (
                   <div className="text-center py-12">
@@ -684,7 +764,6 @@ export default function SubcategoriesPage({ params }) {
                         exit={{ opacity: 0, x: 20 }}
                         className="bg-teal-50 rounded-xl p-4 flex items-center gap-4"
                       >
-                        {/* Item Image */}
                         <div className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-teal-100 to-cyan-100">
                           {item.image ? (
                             <Image
@@ -700,7 +779,6 @@ export default function SubcategoriesPage({ params }) {
                           )}
                         </div>
 
-                        {/* Item Info */}
                         <div className="flex-1">
                           <h4 className="font-bold text-teal-900 mb-1">{item.name}</h4>
                           <p className="text-teal-700 font-semibold">
@@ -708,7 +786,6 @@ export default function SubcategoriesPage({ params }) {
                           </p>
                         </div>
 
-                        {/* Quantity Controls */}
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => updateCartItemQuantity(item.id, item.quantity - 1)}
@@ -727,7 +804,6 @@ export default function SubcategoriesPage({ params }) {
                           </button>
                         </div>
 
-                        {/* Remove Button */}
                         <button
                           onClick={() => removeFromCart(item.id)}
                           className="bg-red-100 text-red-600 p-2 rounded-lg hover:bg-red-200 transition-colors"
@@ -740,16 +816,13 @@ export default function SubcategoriesPage({ params }) {
                 )}
               </div>
 
-              {/* Cart Footer */}
               {cart.length > 0 && (
                 <div className="border-t border-teal-100 p-6 space-y-4">
-                  {/* Total */}
                   <div className="flex items-center justify-between text-2xl font-black text-teal-900">
                     <span>Toplam:</span>
                     <span>₺{getCartTotal().toFixed(2)}</span>
                   </div>
 
-                  {/* Actions */}
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       onClick={clearCart}
@@ -773,7 +846,6 @@ export default function SubcategoriesPage({ params }) {
         )}
       </AnimatePresence>
 
-      {/* Footer */}
       <MenuFooter />
 
       <style jsx>{`
