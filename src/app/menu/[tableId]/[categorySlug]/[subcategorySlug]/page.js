@@ -5,12 +5,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   ArrowLeft, Coffee, Plus, Minus, ShoppingCart, X, Flame, 
   GraduationCap, Tag, Heart, Instagram, Facebook, Twitter,
-  Trash2, Send, Clock
+  Trash2, Send, Clock, Sparkles
 } from 'lucide-react'
 import Image from 'next/image'
 import toast from 'react-hot-toast'
 import MenuFooter from '@/components/MenuFooter'
-
+// 🔐 YENİ: Session Manager Import
+import { SessionManager } from '@/lib/sessionManager'
 
 export default function SubcategoryProductsPage({ params }) {
   const [products, setProducts] = useState([])
@@ -25,6 +26,12 @@ export default function SubcategoryProductsPage({ params }) {
   const [showCartModal, setShowCartModal] = useState(false)
   const [quantity, setQuantity] = useState(1)
   const [cart, setCart] = useState([])
+  
+  // 🔐 YENİ: Session States
+  const [session, setSession] = useState(null)
+  const [sessionManager, setSessionManager] = useState(null)
+  const [sessionLoading, setSessionLoading] = useState(true)
+  
   const router = useRouter()
 
   // Cart key for localStorage
@@ -57,11 +64,52 @@ export default function SubcategoryProductsPage({ params }) {
     unwrapParams()
   }, [params])
 
+  // 🔐 YENİ: Session Başlatma
+  useEffect(() => {
+    if (tableId) {
+      initSession()
+    }
+  }, [tableId])
+
   useEffect(() => {
     if (tableId && categorySlug && subcategorySlug) {
       fetchData()
     }
   }, [tableId, categorySlug, subcategorySlug])
+
+  // 🔐 YENİ: Session Başlatma Fonksiyonu
+  const initSession = async () => {
+    try {
+      setSessionLoading(true)
+      
+      const manager = new SessionManager(parseInt(tableId))
+      setSessionManager(manager)
+      
+      console.log('🔐 Initializing session for table:', tableId)
+      
+      const result = await manager.initSession()
+      
+      if (result.success) {
+        setSession(result.session)
+        console.log('✅ Session initialized:', result.session.sessionId)
+        
+        if (result.isNew) {
+          toast.success('Hoş geldiniz! 🎉', {
+            duration: 3000
+          })
+        }
+      } else {
+        console.error('❌ Session init failed:', result.error)
+        toast.error('Bağlantı hatası. Sipariş verirken sorun yaşayabilirsiniz.', {
+          duration: 4000
+        })
+      }
+    } catch (error) {
+      console.error('💥 Session initialization error:', error)
+    } finally {
+      setSessionLoading(false)
+    }
+  }
 
   const fetchData = async () => {
     try {
@@ -76,7 +124,6 @@ export default function SubcategoryProductsPage({ params }) {
       if (categoriesData.success) {
         const allCategories = categoriesData.flatCategories || []
         
-        // Find parent and subcategory
         const mainCategory = allCategories.find(cat => cat.slug === categorySlug)
         setParentCategory(mainCategory)
         
@@ -92,6 +139,7 @@ export default function SubcategoryProductsPage({ params }) {
       }
     } catch (error) {
       console.error('Error loading data:', error)
+      toast.error('Menü yüklenirken hata oluştu')
     } finally {
       setLoading(false)
     }
@@ -121,7 +169,6 @@ export default function SubcategoryProductsPage({ params }) {
     setShowCartModal(false)
   }
 
-  // Add to cart
   const handleAddToCart = () => {
     const existingItem = cart.find(item => item.id === selectedProduct.id)
     
@@ -146,7 +193,6 @@ export default function SubcategoryProductsPage({ params }) {
     closeProductModal()
   }
 
-  // Update cart item quantity
   const updateCartItemQuantity = (itemId, newQuantity) => {
     if (newQuantity <= 0) {
       removeFromCart(itemId)
@@ -158,24 +204,22 @@ export default function SubcategoryProductsPage({ params }) {
     ))
   }
 
-  // Remove from cart
   const removeFromCart = (itemId) => {
     setCart(cart.filter(item => item.id !== itemId))
     toast.success('Ürün sepetten kaldırıldı')
   }
 
-  // Clear cart
   const clearCart = () => {
     setCart([])
+    localStorage.removeItem(getCartKey())
     toast.success('Sepet temizlendi')
   }
 
-  // Calculate total
   const getCartTotal = () => {
     return cart.reduce((total, item) => total + (item.price * item.quantity), 0)
   }
 
-  // Submit order
+  // 🔐 GÜNCELLENMIŞ: Session Güvenliği ile Sipariş Gönderme
   const handleSubmitOrder = async () => {
     if (cart.length === 0) {
       toast.error('Sepetiniz boş!')
@@ -183,16 +227,37 @@ export default function SubcategoryProductsPage({ params }) {
     }
 
     try {
+      // 🔐 Session Bilgilerini Hazırla
       const orderData = {
         tableNumber: parseInt(tableId),
+        tableId: tableId.toString(),
         items: cart.map(item => ({
           menuItemId: item.id,
           name: item.name,
-          price: item.price,
-          quantity: item.quantity
+          price: parseFloat(item.price) || 0,
+          quantity: parseInt(item.quantity) || 1,
+          customizations: { removed: [], extras: [] }
         })),
-        totalAmount: getCartTotal()
+        totalAmount: parseFloat(getCartTotal()) || 0,
+        status: 'pending'
       }
+
+      // 🔐 YENİ: Session bilgilerini ekle
+      if (session && sessionManager) {
+        orderData.sessionId = session.sessionId
+        orderData.deviceFingerprint = sessionManager.deviceInfo.fingerprint
+        orderData.deviceInfo = {
+          browser: sessionManager.deviceInfo.browser,
+          os: sessionManager.deviceInfo.os,
+          isMobile: sessionManager.deviceInfo.isMobile
+        }
+        
+        console.log('🔐 Sending order with session:', session.sessionId)
+      } else {
+        console.log('⚠️ Sending order WITHOUT session (backward compatible mode)')
+      }
+
+      console.log('📦 Sending order:', orderData)
 
       const response = await fetch('/api/orders', {
         method: 'POST',
@@ -200,22 +265,101 @@ export default function SubcategoryProductsPage({ params }) {
         body: JSON.stringify(orderData)
       })
 
-      const data = await response.json()
+      const result = await response.json()
+      console.log('📦 Response:', result)
 
-      if (data.success) {
-        toast.success('Siparişiniz alındı! 🎉')
-        clearCart()
-        closeCartModal()
-      } else {
-        toast.error('Sipariş gönderilemedi: ' + data.error)
+      // 🔐 YENİ: Hata Kodlarını Handle Et
+      if (!response.ok || !result.success) {
+        // Session hataları
+        if (result.code === 'SESSION_EXPIRED' || result.code === 'INVALID_SESSION') {
+          toast.error('Oturum süresi doldu. Lütfen QR kodu tekrar okutun.', {
+            duration: 5000,
+            icon: '⏰'
+          })
+          
+          if (sessionManager) {
+            sessionManager.clearSession()
+            await initSession()
+          }
+          return
+        }
+        
+        // Rate Limit
+        if (result.code === 'RATE_LIMIT_EXCEEDED') {
+          const waitTime = result.retryAfter ? Math.ceil(result.retryAfter / 60) : 2
+          toast.error(`Çok fazla sipariş verdiniz.\n\nLütfen ${waitTime} dakika bekleyin.`, {
+            duration: 6000,
+            icon: '⏱️'
+          })
+          return
+        }
+        
+        // Bot Detection
+        if (result.code === 'BOT_DETECTED' || result.code === 'SLOW_DOWN') {
+          toast.error('Çok hızlı sipariş veriyorsunuz. Lütfen bekleyin.', {
+            duration: 5000,
+            icon: '🤖'
+          })
+          return
+        }
+        
+        // Duplicate Order
+        if (result.code === 'DUPLICATE_SUSPECTED') {
+          const confirmed = window.confirm(
+            `${result.error}\n\nTekrar sipariş vermek istediğinizden emin misiniz?`
+          )
+          
+          if (confirmed) {
+            orderData.confirmed = true
+            
+            const retryResponse = await fetch('/api/orders', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(orderData)
+            })
+            
+            const retryResult = await retryResponse.json()
+            
+            if (retryResponse.ok && retryResult.success) {
+              clearCart()
+              closeCartModal()
+              
+              toast.success(`Siparişiniz alındı! 🎉\n\nSipariş No: ${retryResult.orderNumber || 'N/A'}`, {
+                duration: 5000
+              })
+            } else {
+              throw new Error(retryResult.error || 'Sipariş gönderilemedi')
+            }
+          }
+          return
+        }
+        
+        // Genel hata
+        throw new Error(result.error || 'Sipariş gönderilemedi')
       }
+
+      // ✅ Başarılı
+      clearCart()
+      closeCartModal()
+      
+      toast.success(`Siparişiniz alındı! 🎉\n\nSipariş No: ${result.orderNumber || 'N/A'}`, {
+        duration: 5000
+      })
+      
+      // 🔐 Session istatistiklerini güncelle
+      if (sessionManager) {
+        sessionManager.updateLastActivity()
+      }
+      
     } catch (error) {
-      console.error('Order error:', error)
-      toast.error('Bir hata oluştu')
+      console.error('💥 Order error:', error)
+      toast.error(`Bir hata oluştu: ${error.message}`, {
+        duration: 5000
+      })
     }
   }
 
-  if (loading) {
+  if (loading || sessionLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-teal-50 via-cyan-50 to-emerald-100">
         <div className="absolute inset-0 overflow-hidden">
@@ -238,7 +382,7 @@ export default function SubcategoryProductsPage({ params }) {
               animate={{ opacity: 1 }}
               className="text-teal-700 text-lg font-medium"
             >
-              Yükleniyor...
+              {sessionLoading ? 'Bağlantı kuruluyor...' : 'Yükleniyor...'}
             </motion.p>
           </div>
         </div>
@@ -289,9 +433,14 @@ export default function SubcategoryProductsPage({ params }) {
             >
               {parentCategory?.name} • Masa {tableId}
             </motion.p>
+            {/* 🔐 YENİ: Session Durumu */}
+            {session && (
+              <p className="text-xs text-green-600 mt-0.5">
+                🔐 Güvenli bağlantı
+              </p>
+            )}
           </div>
           
-          {/* Cart Button */}
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
@@ -314,7 +463,6 @@ export default function SubcategoryProductsPage({ params }) {
 
       {/* Main Content */}
       <div className="relative z-10 p-6 max-w-7xl mx-auto">
-        {/* Hero Section */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
@@ -352,16 +500,19 @@ export default function SubcategoryProductsPage({ params }) {
                 className="group cursor-pointer"
               >
                 <div className="bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300">
-                  <div className="relative h-48 bg-gradient-to-br from-teal-100 to-cyan-100">
+                  {/* Image Container */}
+                  <div className="relative aspect-[4/3] w-full bg-gradient-to-br from-teal-100 to-cyan-100 overflow-hidden">
                     {product.image ? (
                       <Image
                         src={product.image}
                         alt={product.name}
                         fill
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                         className="object-cover group-hover:scale-110 transition-transform duration-500"
+                        priority={false}
                       />
                     ) : (
-                      <div className="flex items-center justify-center h-full">
+                      <div className="absolute inset-0 flex items-center justify-center">
                         <Coffee className="w-16 h-16 text-teal-300" />
                       </div>
                     )}
@@ -378,8 +529,16 @@ export default function SubcategoryProductsPage({ params }) {
                         {product.spicyLevel}
                       </div>
                     )}
+
+                    {product.featured && (
+                      <div className="absolute top-3 right-3 bg-amber-500 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" />
+                        Özel
+                      </div>
+                    )}
                   </div>
 
+                  {/* Product Info */}
                   <div className="p-4">
                     <h3 className="font-bold text-teal-900 text-lg leading-tight mb-2 line-clamp-2 group-hover:text-teal-700 transition-colors">
                       {product.name}
@@ -389,6 +548,32 @@ export default function SubcategoryProductsPage({ params }) {
                         {product.description}
                       </p>
                     )}
+                    
+                    {/* Dietary Badges */}
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {product.dietaryInfo?.isVegan && (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                          🌱 Vegan
+                        </span>
+                      )}
+                      {product.dietaryInfo?.isVegetarian && !product.dietaryInfo?.isVegan && (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                          🥬 Vejetaryen
+                        </span>
+                      )}
+                      {product.dietaryInfo?.isGlutenFree && (
+                        <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                          🌾 Glutensiz
+                        </span>
+                      )}
+                      {product.cookingTime && (
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {product.cookingTime}dk
+                        </span>
+                      )}
+                    </div>
+
                     <div className="flex items-center justify-between">
                       <span className="text-2xl font-black text-teal-700">
                         ₺{product.price?.toFixed(2)}
@@ -426,29 +611,64 @@ export default function SubcategoryProductsPage({ params }) {
               onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
             >
-              <div className="relative h-64">
+              {/* Modal Image */}
+              <div className="relative aspect-video w-full overflow-hidden">
                 {selectedProduct.image ? (
                   <Image
                     src={selectedProduct.image}
                     alt={selectedProduct.name}
                     fill
+                    sizes="(max-width: 768px) 100vw, 512px"
                     className="object-cover"
+                    priority={true}
                   />
                 ) : (
-                  <div className="bg-gradient-to-br from-teal-100 to-cyan-100 h-full flex items-center justify-center">
+                  <div className="absolute inset-0 bg-gradient-to-br from-teal-100 to-cyan-100 flex items-center justify-center">
                     <Coffee className="w-20 h-20 text-teal-300" />
                   </div>
                 )}
                 
                 <button
                   onClick={closeProductModal}
-                  className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm p-2 rounded-full shadow-lg"
+                  className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm p-2 rounded-full shadow-lg hover:bg-white transition-colors"
                 >
                   <X className="w-6 h-6 text-teal-700" />
                 </button>
+
+                {selectedProduct.spicyLevel > 0 && (
+                  <div className="absolute top-4 left-4 bg-red-500 text-white px-3 py-1.5 rounded-full text-sm font-bold flex items-center gap-1.5 shadow-lg">
+                    <Flame className="w-4 h-4" />
+                    Acılık: {selectedProduct.spicyLevel}
+                  </div>
+                )}
               </div>
 
               <div className="p-6">
+                {/* Dietary Badges in Modal */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {selectedProduct.dietaryInfo?.isVegan && (
+                    <span className="text-sm bg-green-100 text-green-700 px-3 py-1 rounded-full font-semibold">
+                      🌱 Vegan
+                    </span>
+                  )}
+                  {selectedProduct.dietaryInfo?.isVegetarian && !selectedProduct.dietaryInfo?.isVegan && (
+                    <span className="text-sm bg-green-100 text-green-700 px-3 py-1 rounded-full font-semibold">
+                      🥬 Vejetaryen
+                    </span>
+                  )}
+                  {selectedProduct.dietaryInfo?.isGlutenFree && (
+                    <span className="text-sm bg-amber-100 text-amber-700 px-3 py-1 rounded-full font-semibold">
+                      🌾 Glutensiz
+                    </span>
+                  )}
+                  {selectedProduct.cookingTime && (
+                    <span className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-semibold flex items-center gap-1">
+                      <Clock className="w-4 h-4" />
+                      {selectedProduct.cookingTime} dakika
+                    </span>
+                  )}
+                </div>
+
                 <h2 className="text-3xl font-black text-teal-900 mb-2">
                   {selectedProduct.name}
                 </h2>
@@ -513,7 +733,6 @@ export default function SubcategoryProductsPage({ params }) {
               onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
             >
-              {/* Cart Header */}
               <div className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white p-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -532,7 +751,6 @@ export default function SubcategoryProductsPage({ params }) {
                 </div>
               </div>
 
-              {/* Cart Items */}
               <div className="flex-1 overflow-y-auto p-6">
                 {cart.length === 0 ? (
                   <div className="text-center py-12">
@@ -556,10 +774,11 @@ export default function SubcategoryProductsPage({ params }) {
                               src={item.image}
                               alt={item.name}
                               fill
+                              sizes="80px"
                               className="object-cover"
                             />
                           ) : (
-                            <div className="flex items-center justify-center h-full">
+                            <div className="absolute inset-0 flex items-center justify-center">
                               <Coffee className="w-8 h-8 text-teal-300" />
                             </div>
                           )}
@@ -602,7 +821,6 @@ export default function SubcategoryProductsPage({ params }) {
                 )}
               </div>
 
-              {/* Cart Footer */}
               {cart.length > 0 && (
                 <div className="border-t border-teal-100 p-6 space-y-4">
                   <div className="flex items-center justify-between text-2xl font-black text-teal-900">
@@ -633,7 +851,6 @@ export default function SubcategoryProductsPage({ params }) {
         )}
       </AnimatePresence>
 
-      {/* Footer */}
       <MenuFooter />
 
       <style jsx>{`
@@ -660,4 +877,4 @@ export default function SubcategoryProductsPage({ params }) {
       `}</style>
     </div>
   )
-}
+} 

@@ -8,6 +8,8 @@ import {
 } from 'lucide-react'
 import Image from 'next/image'
 import toast from 'react-hot-toast'
+// 🔐 YENİ: Session Manager Import
+import { SessionManager } from '@/lib/sessionManager'
 
 export default function ProductsPage({ params }) {
   // States
@@ -20,6 +22,11 @@ export default function ProductsPage({ params }) {
   const [tableId, setTableId] = useState(null)
   const [categorySlug, setCategorySlug] = useState(null)
   const [currentCategory, setCurrentCategory] = useState(null)
+  
+  // 🔐 YENİ: Session States
+  const [session, setSession] = useState(null)
+  const [sessionManager, setSessionManager] = useState(null)
+  const [sessionLoading, setSessionLoading] = useState(true)
   
   // Modal states
   const [selectedItem, setSelectedItem] = useState(null)
@@ -46,12 +53,59 @@ export default function ProductsPage({ params }) {
     unwrapParams()
   }, [params])
 
+  // 🔐 YENİ: Session Başlatma
+  useEffect(() => {
+    if (tableId) {
+      initSession()
+    }
+  }, [tableId])
+
   useEffect(() => {
     if (tableId && categorySlug) {
       loadData()
       loadCart()
     }
   }, [tableId, categorySlug])
+
+  // 🔐 YENİ: Session Başlatma Fonksiyonu
+  const initSession = async () => {
+    try {
+      setSessionLoading(true)
+      
+      const manager = new SessionManager(parseInt(tableId))
+      setSessionManager(manager)
+      
+      console.log('🔐 Initializing session for table:', tableId)
+      
+      const result = await manager.initSession()
+      
+      if (result.success) {
+        setSession(result.session)
+        console.log('✅ Session initialized:', result.session.sessionId)
+        console.log('📱 Device fingerprint:', manager.deviceInfo.fingerprint)
+        
+        if (result.isNew) {
+          toast.success('Hoş geldiniz! Sipariş vermeye hazırsınız.', {
+            duration: 3000,
+            icon: '👋'
+          })
+        } else {
+          console.log('ℹ️ Existing session found')
+        }
+      } else {
+        console.error('❌ Session init failed:', result.error)
+        // Session başlamazsa da devam et (backward compatible)
+        toast.error('Bağlantı hatası. Sipariş verirken sorun yaşayabilirsiniz.', {
+          duration: 4000
+        })
+      }
+    } catch (error) {
+      console.error('💥 Session initialization error:', error)
+      // Hata olursa da devam et
+    } finally {
+      setSessionLoading(false)
+    }
+  }
 
   const loadData = async () => {
     try {
@@ -225,6 +279,7 @@ export default function ProductsPage({ params }) {
     return cart.reduce((sum, item) => sum + item.totalPrice, 0)
   }
 
+  // 🔐 GÜNCELLENMIŞ: Session Güvenliği ile Sipariş Gönderme
   const sendOrder = async () => {
     if (cart.length === 0) {
       toast.error('Sepetiniz boş!')
@@ -232,6 +287,7 @@ export default function ProductsPage({ params }) {
     }
 
     try {
+      // 🔐 Session Bilgilerini Hazırla
       const orderData = {
         tableNumber: parseInt(tableId),
         tableId: tableId.toString(),
@@ -248,10 +304,22 @@ export default function ProductsPage({ params }) {
         customerNotes: ''
       }
 
+      // 🔐 YENİ: Session bilgilerini ekle
+      if (session && sessionManager) {
+        orderData.sessionId = session.sessionId
+        orderData.deviceFingerprint = sessionManager.deviceInfo.fingerprint
+        orderData.deviceInfo = {
+          browser: sessionManager.deviceInfo.browser,
+          os: sessionManager.deviceInfo.os,
+          isMobile: sessionManager.deviceInfo.isMobile
+        }
+        
+        console.log('🔐 Sending order with session:', session.sessionId)
+      } else {
+        console.log('⚠️ Sending order WITHOUT session (backward compatible mode)')
+      }
+
       console.log('📦 Sending order data:', JSON.stringify(orderData, null, 2))
-      console.log('🔍 Cart contents:', cart)
-      console.log('💰 Cart total:', getCartTotal())
-      console.log('🏷️ Table ID:', tableId)
 
       const response = await fetch('/api/orders', {
         method: 'POST',
@@ -260,55 +328,125 @@ export default function ProductsPage({ params }) {
       })
 
       console.log('📡 Response status:', response.status)
-      console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()))
       
-      const responseText = await response.text()
-      console.log('📡 Raw response:', responseText)
+      const result = await response.json()
+      console.log('📦 Response:', result)
       
-      let result
-      try {
-        result = JSON.parse(responseText)
-        console.log('📦 Parsed response:', result)
-      } catch (parseError) {
-        console.error('❌ JSON parse error:', parseError)
-        throw new Error(`Server returned invalid JSON: ${responseText}`)
-      }
-      
-      if (response.ok && result.success) {
-        // Sepeti temizle
-        localStorage.removeItem(getCartKey())
-        setCart([])
-        setShowCartModal(false)
-        
-        toast.success(`Siparişiniz başarıyla gönderildi! Sipariş No: ${result.orderNumber || 'N/A'}`, {
-          duration: 5000
-        })
-      } else {
-        console.error('❌ Order creation failed:', {
-          status: response.status,
-          result: result
-        })
-        
-        if (result.errors && Array.isArray(result.errors)) {
-          console.error('❌ Validation errors:', result.errors)
-          throw new Error(`Validation errors: ${result.errors.join(', ')}`)
+      // 🔐 YENİ: Hata Kodlarını Handle Et
+      if (!response.ok || !result.success) {
+        // Session hataları
+        if (result.code === 'SESSION_EXPIRED' || result.code === 'INVALID_SESSION') {
+          toast.error(result.error || 'Oturum süresi doldu. Lütfen QR kodu tekrar okutun.', {
+            duration: 5000,
+            icon: '⏰'
+          })
+          
+          // Session'ı temizle ve yeniden başlat
+          if (sessionManager) {
+            sessionManager.clearSession()
+            await initSession()
+          }
+          return
         }
         
-        throw new Error(result.error || `HTTP ${response.status} - Sipariş oluşturulamadı`)
+        // Rate Limit
+        if (result.code === 'RATE_LIMIT_EXCEEDED') {
+          const waitTime = result.retryAfter ? Math.ceil(result.retryAfter / 60) : 2
+          toast.error(`${result.error}\n\nLütfen ${waitTime} dakika bekleyin.`, {
+            duration: 6000,
+            icon: '⏱️'
+          })
+          return
+        }
+        
+        // Bot Detection
+        if (result.code === 'BOT_DETECTED' || result.code === 'SLOW_DOWN') {
+          toast.error(result.error || 'Çok hızlı sipariş veriyorsunuz. Lütfen bekleyin.', {
+            duration: 5000,
+            icon: '🤖'
+          })
+          return
+        }
+        
+        // Duplicate Order
+        if (result.code === 'DUPLICATE_SUSPECTED') {
+          // Onay dialogu göster
+          const confirmed = window.confirm(
+            `${result.error}\n\nTekrar sipariş vermek istediğinizden emin misiniz?`
+          )
+          
+          if (confirmed) {
+            // Confirmed flag ile tekrar gönder
+            orderData.confirmed = true
+            
+            const retryResponse = await fetch('/api/orders', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(orderData)
+            })
+            
+            const retryResult = await retryResponse.json()
+            
+            if (retryResponse.ok && retryResult.success) {
+              // Başarılı
+              localStorage.removeItem(getCartKey())
+              setCart([])
+              setShowCartModal(false)
+              
+              toast.success(`Siparişiniz başarıyla gönderildi!\n\nSipariş No: ${retryResult.orderNumber || 'N/A'}`, {
+                duration: 5000,
+                icon: '✅'
+              })
+            } else {
+              throw new Error(retryResult.error || 'Sipariş gönderilemedi')
+            }
+          }
+          return
+        }
+        
+        // Validation errors
+        if (result.errors && Array.isArray(result.errors)) {
+          toast.error(`Hata: ${result.errors.join(', ')}`, {
+            duration: 5000
+          })
+          return
+        }
+        
+        // Genel hata
+        throw new Error(result.error || 'Sipariş oluşturulamadı')
       }
+      
+      // ✅ Başarılı
+      localStorage.removeItem(getCartKey())
+      setCart([])
+      setShowCartModal(false)
+      
+      toast.success(`Siparişiniz başarıyla gönderildi!\n\nSipariş No: ${result.orderNumber || 'N/A'}`, {
+        duration: 5000,
+        icon: '✅'
+      })
+      
+      // 🔐 Session istatistiklerini güncelle (opsiyonel)
+      if (sessionManager) {
+        sessionManager.updateLastActivity()
+      }
+      
     } catch (error) {
       console.error('💥 Sipariş gönderilirken hata:', error)
-      console.error('💥 Error stack:', error.stack)
-      toast.error(`Sipariş gönderilirken hata oluştu: ${error.message}`)
+      toast.error(`Sipariş gönderilirken hata oluştu: ${error.message}`, {
+        duration: 5000
+      })
     }
   }
 
-  if (loading) {
+  if (loading || sessionLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-red-50 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-amber-200 border-t-amber-500 rounded-full animate-spin mx-auto"></div>
-          <p className="text-amber-600 mt-4 font-medium">Ürünler yükleniyor...</p>
+          <p className="text-amber-600 mt-4 font-medium">
+            {sessionLoading ? 'Bağlantı kuruluyor...' : 'Ürünler yükleniyor...'}
+          </p>
         </div>
       </div>
     )
@@ -331,6 +469,12 @@ export default function ProductsPage({ params }) {
               {currentCategory?.name}
             </h1>
             <p className="text-sm text-amber-600">Masa {tableId}</p>
+            {/* 🔐 YENİ: Session Durumu (Debug - production'da kaldırılabilir) */}
+            {session && (
+              <p className="text-xs text-green-600 mt-0.5">
+                🔐 Güvenli bağlantı aktif
+              </p>
+            )}
           </div>
           
           <button

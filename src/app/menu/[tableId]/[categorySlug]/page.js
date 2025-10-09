@@ -5,113 +5,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   ArrowLeft, Coffee, Thermometer, Snowflake, ChevronRight, Package, 
   Sparkles, Layers, GraduationCap, Tag, Heart, Instagram, Facebook, 
-  Twitter, Grid3x3, Plus, Minus, ShoppingCart, X, Flame, Trash2, Send, Check
+  Twitter, Grid3x3, Plus, Minus, ShoppingCart, X, Flame, Trash2, Send, Check, Clock
 } from 'lucide-react'
 import Image from 'next/image'
 import toast from 'react-hot-toast'
-
-// Footer Component
-function MenuFooter() {
-  const mottos = [
-    {
-      icon: GraduationCap,
-      title: "Öğrenci Dostu",
-      description: "Özel fiyatlarla her zaman yanınızdayız"
-    },
-    {
-      icon: Tag,
-      title: "Kampanyanın Tek Adresi",
-      description: "Her gün yeni fırsatlar"
-    },
-    {
-      icon: Heart,
-      title: "Kaliteli Lezzetler",
-      description: "Taze malzeme, özenli servis"
-    }
-  ]
-
-  const socialLinks = [
-    { icon: Instagram, href: "#", label: "Instagram" },
-    { icon: Facebook, href: "#", label: "Facebook" },
-    { icon: Twitter, href: "#", label: "Twitter" }
-  ]
-
-  return (
-    <footer className="relative z-10 mt-16 border-t border-teal-200 bg-white/80 backdrop-blur-md">
-      <div className="max-w-7xl mx-auto px-6 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-          {mottos.map((motto, index) => {
-            const IconComponent = motto.icon
-            return (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="flex flex-col items-center text-center"
-              >
-                <div className="w-14 h-14 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
-                  <IconComponent className="w-7 h-7 text-white" />
-                </div>
-                <h3 className="text-lg font-bold text-teal-900 mb-2">
-                  {motto.title}
-                </h3>
-                <p className="text-sm text-teal-600 font-medium">
-                  {motto.description}
-                </p>
-              </motion.div>
-            )
-          })}
-        </div>
-
-        <div className="border-t border-teal-200 my-8"></div>
-
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-teal-600 to-cyan-700 rounded-xl flex items-center justify-center">
-              <Coffee className="w-6 h-6 text-white" />
-            </div>
-            <div className="text-teal-800">
-              <p className="font-bold text-lg">MEVA CAFE</p>
-              <p className="text-xs text-teal-600">© 2025 Tüm hakları saklıdır</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {socialLinks.map((social, index) => {
-              const IconComponent = social.icon
-              return (
-                <motion.a
-                  key={index}
-                  href={social.href}
-                  whileHover={{ scale: 1.1, y: -3 }}
-                  whileTap={{ scale: 0.9 }}
-                  className="w-10 h-10 bg-teal-100 hover:bg-teal-200 rounded-xl flex items-center justify-center transition-colors duration-200"
-                  aria-label={social.label}
-                >
-                  <IconComponent className="w-5 h-5 text-teal-700" />
-                </motion.a>
-              )
-            })}
-          </div>
-        </div>
-
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="text-center mt-8"
-        >
-          <p className="text-teal-600 text-sm font-medium flex items-center justify-center gap-2">
-            <Coffee className="w-4 h-4" />
-            Her Damla Özenle Hazırlanır
-            <Heart className="w-4 h-4 fill-current" />
-          </p>
-        </motion.div>
-      </div>
-    </footer>
-  )
-}
+import MenuFooter from '@/components/MenuFooter'
 
 export default function SubcategoriesPage({ params }) {
   const [subcategories, setSubcategories] = useState([])
@@ -567,16 +465,18 @@ export default function SubcategoriesPage({ params }) {
                   className="group cursor-pointer"
                 >
                   <div className="bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300">
-                    <div className="relative h-48 bg-gradient-to-br from-teal-100 to-cyan-100">
+                    <div className="relative aspect-[4/3] w-full bg-gradient-to-br from-teal-100 to-cyan-100 overflow-hidden">
                       {product.image ? (
                         <Image
                           src={product.image}
                           alt={product.name}
                           fill
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                           className="object-cover group-hover:scale-110 transition-transform duration-500"
+                          priority={false}
                         />
                       ) : (
-                        <div className="flex items-center justify-center h-full">
+                        <div className="absolute inset-0 flex items-center justify-center">
                           <Coffee className="w-16 h-16 text-teal-300" />
                         </div>
                       )}
@@ -593,6 +493,13 @@ export default function SubcategoriesPage({ params }) {
                           {product.spicyLevel}
                         </div>
                       )}
+
+                      {product.featured && (
+                        <div className="absolute top-3 right-3 bg-amber-500 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" />
+                          Özel
+                        </div>
+                      )}
                     </div>
 
                     <div className="p-4">
@@ -604,6 +511,31 @@ export default function SubcategoriesPage({ params }) {
                           {product.description}
                         </p>
                       )}
+                      
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        {product.dietaryInfo?.isVegan && (
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                            🌱 Vegan
+                          </span>
+                        )}
+                        {product.dietaryInfo?.isVegetarian && !product.dietaryInfo?.isVegan && (
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                            🥬 Vejetaryen
+                          </span>
+                        )}
+                        {product.dietaryInfo?.isGlutenFree && (
+                          <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                            🌾 Glutensiz
+                          </span>
+                        )}
+                        {product.cookingTime && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {product.cookingTime}dk
+                          </span>
+                        )}
+                      </div>
+
                       <div className="flex items-center justify-between">
                         <span className="text-2xl font-black text-teal-700">
                           ₺{product.price?.toFixed(2)}
@@ -643,29 +575,62 @@ export default function SubcategoriesPage({ params }) {
               onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
             >
-              <div className="relative h-64">
+              <div className="relative aspect-video w-full overflow-hidden">
                 {selectedProduct.image ? (
                   <Image
                     src={selectedProduct.image}
                     alt={selectedProduct.name}
                     fill
+                    sizes="(max-width: 768px) 100vw, 512px"
                     className="object-cover"
+                    priority={true}
                   />
                 ) : (
-                  <div className="bg-gradient-to-br from-teal-100 to-cyan-100 h-full flex items-center justify-center">
+                  <div className="absolute inset-0 bg-gradient-to-br from-teal-100 to-cyan-100 flex items-center justify-center">
                     <Coffee className="w-20 h-20 text-teal-300" />
                   </div>
                 )}
                 
                 <button
                   onClick={closeProductModal}
-                  className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm p-2 rounded-full shadow-lg"
+                  className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm p-2 rounded-full shadow-lg hover:bg-white transition-colors"
                 >
                   <X className="w-6 h-6 text-teal-700" />
                 </button>
+
+                {selectedProduct.spicyLevel > 0 && (
+                  <div className="absolute top-4 left-4 bg-red-500 text-white px-3 py-1.5 rounded-full text-sm font-bold flex items-center gap-1.5 shadow-lg">
+                    <Flame className="w-4 h-4" />
+                    Acılık: {selectedProduct.spicyLevel}
+                  </div>
+                )}
               </div>
 
               <div className="p-6">
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {selectedProduct.dietaryInfo?.isVegan && (
+                    <span className="text-sm bg-green-100 text-green-700 px-3 py-1 rounded-full font-semibold">
+                      🌱 Vegan
+                    </span>
+                  )}
+                  {selectedProduct.dietaryInfo?.isVegetarian && !selectedProduct.dietaryInfo?.isVegan && (
+                    <span className="text-sm bg-green-100 text-green-700 px-3 py-1 rounded-full font-semibold">
+                      🥬 Vejetaryen
+                    </span>
+                  )}
+                  {selectedProduct.dietaryInfo?.isGlutenFree && (
+                    <span className="text-sm bg-amber-100 text-amber-700 px-3 py-1 rounded-full font-semibold">
+                      🌾 Glutensiz
+                    </span>
+                  )}
+                  {selectedProduct.cookingTime && (
+                    <span className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-semibold flex items-center gap-1">
+                      <Clock className="w-4 h-4" />
+                      {selectedProduct.cookingTime} dakika
+                    </span>
+                  )}
+                </div>
+
                 <h2 className="text-3xl font-black text-teal-900 mb-2">
                   {selectedProduct.name}
                 </h2>
@@ -770,10 +735,11 @@ export default function SubcategoriesPage({ params }) {
                               src={item.image}
                               alt={item.name}
                               fill
+                              sizes="80px"
                               className="object-cover"
                             />
                           ) : (
-                            <div className="flex items-center justify-center h-full">
+                            <div className="absolute inset-0 flex items-center justify-center">
                               <Coffee className="w-8 h-8 text-teal-300" />
                             </div>
                           )}

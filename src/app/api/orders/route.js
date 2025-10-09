@@ -1,4 +1,4 @@
-// src/app/api/orders/route.js - Tam Dosya İçeriği
+// src/app/api/orders/route.js - Session Güvenliği Eklenmiş Versiyon
 
 import { NextResponse } from 'next/server'
 import clientPromise from '@/lib/mongodb'
@@ -18,6 +18,11 @@ import {
   getNextStatuses,
   getOrderDuration
 } from '@/lib/models/order'
+
+// 🔐 YENİ: Session Security Imports
+import { validateSession, registerDevice, updateSessionActivity } from '@/lib/security/sessionValidator'
+import { checkRateLimit, updateRateLimitStats } from '@/lib/security/rateLimiter'
+import { detectBotPattern, checkDuplicateOrder } from '@/lib/security/botDetector'
 
 // GET - Orders listesi (masa bazlı gruplandırma ile)
 export async function GET(request) {
@@ -261,7 +266,7 @@ function groupOrdersByTable(orders) {
   return tableGroups.sort((a, b) => new Date(b.lastOrderAt) - new Date(a.lastOrderAt))
 }
 
-// POST - Yeni sipariş oluştur
+// POST - Yeni sipariş oluştur (🔐 SESSION GÜVENLİĞİ EKLENDİ)
 export async function POST(request) {
   try {
     const client = await clientPromise
@@ -270,6 +275,128 @@ export async function POST(request) {
     const data = await request.json()
     
     console.log('📦 Received order data:', JSON.stringify(data, null, 2)) // Debug
+    
+    // ============================================
+    // 🔐 SESSION GÜVENLİK KONTROLLERI (YENİ!)
+    // ============================================
+    
+    // Session ID var mı?
+    if (data.sessionId) {
+      console.log('🔐 Session security enabled for order')
+      
+      // 1️⃣ SESSION VALIDATION
+      const sessionValidation = await validateSession(data.sessionId, db)
+      
+      if (!sessionValidation.valid) {
+        console.log('❌ Session validation failed:', sessionValidation.error)
+        return NextResponse.json({
+          success: false,
+          error: sessionValidation.error,
+          code: sessionValidation.code,
+          action: 'RESCAN_QR'
+        }, { status: 401 })
+      }
+      
+      const session = sessionValidation.session
+      console.log('✅ Session validated:', session.sessionId)
+      
+      // 2️⃣ DEVICE REGISTRATION/UPDATE
+      if (data.deviceFingerprint) {
+        const deviceResult = await registerDevice(
+          data.sessionId,
+          {
+            fingerprint: data.deviceFingerprint,
+            ipAddress: request.headers.get('x-forwarded-for') || 
+                        request.headers.get('x-real-ip') || 
+                        'unknown',
+            userAgent: request.headers.get('user-agent') || 'unknown',
+            deviceInfo: data.deviceInfo || {}
+          },
+          db
+        )
+        
+        console.log('📱 Device registered:', deviceResult.message)
+      }
+      
+      // 3️⃣ RATE LIMITING
+      const rateLimitCheck = await checkRateLimit(session, db)
+      
+      if (!rateLimitCheck.allowed) {
+        console.log('🚫 Rate limit exceeded:', rateLimitCheck.reason)
+        return NextResponse.json({
+          success: false,
+          error: rateLimitCheck.message,
+          code: 'RATE_LIMIT_EXCEEDED',
+          retryAfter: rateLimitCheck.retryAfter
+        }, { status: 429 })
+      }
+      
+      console.log('✅ Rate limit check passed')
+      
+      // 4️⃣ BOT DETECTION
+      const botCheck = await detectBotPattern(session, data, db)
+      
+      if (botCheck.isBot && botCheck.action === 'BLOCK') {
+        console.log('🤖 Bot detected - BLOCKING:', botCheck.reason)
+        
+        // Session'ı şüpheli olarak işaretle
+        await db.collection('sessions').updateOne(
+          { sessionId: data.sessionId },
+          {
+            $set: {
+              'flags.isSuspicious': true,
+              'flags.autoFlagged': true,
+              'flags.flaggedAt': new Date()
+            },
+            $addToSet: {
+              'flags.reasons': 'BOT_DETECTED'
+            }
+          }
+        )
+        
+        return NextResponse.json({
+          success: false,
+          error: botCheck.message,
+          code: 'BOT_DETECTED',
+          action: 'WAIT',
+          waitTime: 10
+        }, { status: 429 })
+      }
+      
+      if (botCheck.isBot && botCheck.action === 'WAIT') {
+        console.log('⚠️ Bot suspected - SLOWING DOWN:', botCheck.reason)
+        return NextResponse.json({
+          success: false,
+          error: botCheck.message || 'Lütfen 10 saniye bekleyin',
+          code: 'SLOW_DOWN',
+          waitTime: botCheck.waitTime || 10
+        }, { status: 429 })
+      }
+      
+      console.log('✅ Bot detection passed')
+      
+      // 5️⃣ DUPLICATE CHECK
+      const duplicateCheck = await checkDuplicateOrder(data, data.sessionId, db)
+      
+      if (duplicateCheck.isDuplicate && !data.confirmed) {
+        console.log('⚠️ Duplicate order detected')
+        return NextResponse.json({
+          success: false,
+          error: duplicateCheck.message,
+          code: 'DUPLICATE_SUSPECTED',
+          action: 'CONFIRM',
+          requireConfirmation: true
+        }, { status: 400 })
+      }
+      
+      console.log('✅ All security checks passed')
+    } else {
+      console.log('ℹ️ No session ID - backward compatible mode')
+    }
+    
+    // ============================================
+    // NORMAL SİPARİŞ İŞLEMLERİ (MEVCUT KOD)
+    // ============================================
     
     // Validation
     const errors = validateOrder(data)
@@ -347,6 +474,17 @@ export async function POST(request) {
     // Create order
     const order = createOrder(data)
     
+    // 🔐 YENİ: Session bilgilerini order'a ekle
+    if (data.sessionId) {
+      order.sessionId = data.sessionId
+      order.deviceFingerprint = data.deviceFingerprint || null
+      order.security = {
+        wasAutoApproved: true,
+        requiresApproval: false,
+        flags: []
+      }
+    }
+    
     // Estimated time calculation based on items
     let totalEstimatedTime = 0
     data.items.forEach(item => {
@@ -362,6 +500,52 @@ export async function POST(request) {
     
     // Insert order
     const result = await db.collection('orders').insertOne(order)
+    
+    console.log('✅ Order created:', result.insertedId.toString())
+    
+    // ============================================
+    // 🔐 YENİ: SESSION GÜNCELLEME
+    // ============================================
+    if (data.sessionId) {
+      // Session istatistiklerini güncelle
+      await db.collection('sessions').updateOne(
+        { sessionId: data.sessionId },
+        {
+          $inc: {
+            orderCount: 1,
+            totalAmount: order.totalAmount || 0
+          },
+          $push: {
+            orders: result.insertedId
+          },
+          $set: {
+            lastActivity: new Date(),
+            'rateLimits.lastOrderTime': new Date(),
+            updatedAt: new Date()
+          }
+        }
+      )
+      
+      // Device order count güncelle
+      if (data.deviceFingerprint) {
+        await db.collection('sessions').updateOne(
+          { 
+            sessionId: data.sessionId,
+            'devices.fingerprint': data.deviceFingerprint
+          },
+          {
+            $inc: {
+              'devices.$.orderCount': 1
+            },
+            $set: {
+              'devices.$.lastSeen': new Date()
+            }
+          }
+        )
+      }
+      
+      console.log('✅ Session updated with order info')
+    }
     
     // Update table status if needed
     if (data.tableId) {
@@ -425,6 +609,23 @@ export async function PUT(request) {
       
       console.log(`🏢 Closing table ${tableNumber}...`) // Debug
       
+      // 🔐 YENİ: Masa kapatılırken session'ı da kapat
+      await db.collection('sessions').updateOne(
+        { 
+          tableNumber: parseInt(tableNumber),
+          status: 'active'
+        },
+        {
+          $set: {
+            status: 'closed',
+            closedAt: new Date(),
+            updatedAt: new Date()
+          }
+        }
+      )
+      
+      console.log(`🔐 Session closed for table ${tableNumber}`)
+      
       // O masadaki tüm aktif siparişleri bul
       const activeOrders = await db.collection('orders')
         .find({
@@ -481,6 +682,7 @@ export async function PUT(request) {
         { 
           $set: { 
             status: 'empty',
+            currentSessionId: null,
             lastClosedAt: new Date()
           }
         }
@@ -635,7 +837,12 @@ export async function PUT(request) {
         
         await db.collection('tables').updateOne(
           tableQuery,
-          { $set: { status: 'empty' } }
+          { 
+            $set: { 
+              status: 'empty',
+              currentSessionId: null
+            }
+          }
         )
       }
     }
