@@ -5,113 +5,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   ArrowLeft, Coffee, Thermometer, Snowflake, ChevronRight, Package, 
   Sparkles, Layers, GraduationCap, Tag, Heart, Instagram, Facebook, 
-  Twitter, Grid3x3, Plus, Minus, ShoppingCart, X, Flame
+  Twitter, Grid3x3, Plus, Minus, ShoppingCart, X, Flame, Trash2, Send
 } from 'lucide-react'
 import Image from 'next/image'
 import toast from 'react-hot-toast'
+import MenuFooter from '@/components/MenuFooter'
 
-// Footer Component
-function MenuFooter() {
-  const mottos = [
-    {
-      icon: GraduationCap,
-      title: "Öğrenci Dostu",
-      description: "Özel fiyatlarla her zaman yanınızdayız"
-    },
-    {
-      icon: Tag,
-      title: "Kampanyanın Tek Adresi",
-      description: "Her gün yeni fırsatlar"
-    },
-    {
-      icon: Heart,
-      title: "Kaliteli Lezzetler",
-      description: "Taze malzeme, özenli servis"
-    }
-  ]
 
-  const socialLinks = [
-    { icon: Instagram, href: "#", label: "Instagram" },
-    { icon: Facebook, href: "#", label: "Facebook" },
-    { icon: Twitter, href: "#", label: "Twitter" }
-  ]
-
-  return (
-    <footer className="relative z-10 mt-16 border-t border-teal-200 bg-white/80 backdrop-blur-md">
-      <div className="max-w-7xl mx-auto px-6 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-          {mottos.map((motto, index) => {
-            const IconComponent = motto.icon
-            return (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="flex flex-col items-center text-center"
-              >
-                <div className="w-14 h-14 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
-                  <IconComponent className="w-7 h-7 text-white" />
-                </div>
-                <h3 className="text-lg font-bold text-teal-900 mb-2">
-                  {motto.title}
-                </h3>
-                <p className="text-sm text-teal-600 font-medium">
-                  {motto.description}
-                </p>
-              </motion.div>
-            )
-          })}
-        </div>
-
-        <div className="border-t border-teal-200 my-8"></div>
-
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-teal-600 to-cyan-700 rounded-xl flex items-center justify-center">
-              <Coffee className="w-6 h-6 text-white" />
-            </div>
-            <div className="text-teal-800">
-              <p className="font-bold text-lg">MEVA CAFE</p>
-              <p className="text-xs text-teal-600">© 2025 Tüm hakları saklıdır</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {socialLinks.map((social, index) => {
-              const IconComponent = social.icon
-              return (
-                <motion.a
-                  key={index}
-                  href={social.href}
-                  whileHover={{ scale: 1.1, y: -3 }}
-                  whileTap={{ scale: 0.9 }}
-                  className="w-10 h-10 bg-teal-100 hover:bg-teal-200 rounded-xl flex items-center justify-center transition-colors duration-200"
-                  aria-label={social.label}
-                >
-                  <IconComponent className="w-5 h-5 text-teal-700" />
-                </motion.a>
-              )
-            })}
-          </div>
-        </div>
-
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="text-center mt-8"
-        >
-          <p className="text-teal-600 text-sm font-medium flex items-center justify-center gap-2">
-            <Coffee className="w-4 h-4" />
-            Her Damla Özenle Hazırlanır
-            <Heart className="w-4 h-4 fill-current" />
-          </p>
-        </motion.div>
-      </div>
-    </footer>
-  )
-}
 
 export default function SubcategoriesPage({ params }) {
   const [subcategories, setSubcategories] = useState([])
@@ -122,7 +22,9 @@ export default function SubcategoriesPage({ params }) {
   const [categorySlug, setCategorySlug] = useState(null)
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [showProductModal, setShowProductModal] = useState(false)
+  const [showCartModal, setShowCartModal] = useState(false)
   const [quantity, setQuantity] = useState(1)
+  const [cart, setCart] = useState([])
   const router = useRouter()
 
   const subcategoryIcons = {
@@ -136,6 +38,26 @@ export default function SubcategoriesPage({ params }) {
     'soğuk-içecekler': Snowflake,
     'default': Package
   }
+
+  // Cart key for localStorage
+  const getCartKey = () => `meva-cart-${tableId}`
+
+  // Load cart from localStorage
+  useEffect(() => {
+    if (tableId) {
+      const savedCart = localStorage.getItem(getCartKey())
+      if (savedCart) {
+        setCart(JSON.parse(savedCart))
+      }
+    }
+  }, [tableId])
+
+  // Save cart to localStorage
+  useEffect(() => {
+    if (tableId && cart.length >= 0) {
+      localStorage.setItem(getCartKey(), JSON.stringify(cart))
+    }
+  }, [cart, tableId])
 
   useEffect(() => {
     const unwrapParams = async () => {
@@ -156,11 +78,9 @@ export default function SubcategoriesPage({ params }) {
     try {
       setLoading(true)
       
-      // Fetch categories
       const categoriesRes = await fetch('/api/admin/categories')
       const categoriesData = await categoriesRes.json()
       
-      // Fetch products
       const productsRes = await fetch('/api/menu')
       const productsData = await productsRes.json()
       
@@ -171,13 +91,11 @@ export default function SubcategoriesPage({ params }) {
         setParentCategory(mainCategory)
         
         if (mainCategory) {
-          // Get subcategories
           const subCats = allCategories.filter(cat => 
             cat.parentId === mainCategory.id && cat.isActive
           )
           setSubcategories(subCats)
           
-          // Get products for this category
           if (productsData.success) {
             const categoryProducts = productsData.items?.filter(item => 
               item.categoryId === mainCategory.id && item.available !== false
@@ -219,9 +137,108 @@ export default function SubcategoriesPage({ params }) {
     setQuantity(1)
   }
 
+  const openCartModal = () => {
+    setShowCartModal(true)
+  }
+
+  const closeCartModal = () => {
+    setShowCartModal(false)
+  }
+
+  // Add to cart
   const handleAddToCart = () => {
-    toast.success(`${quantity}x ${selectedProduct.name} sepete eklendi!`)
+    const existingItem = cart.find(item => item.id === selectedProduct.id)
+    
+    if (existingItem) {
+      // Update quantity
+      setCart(cart.map(item => 
+        item.id === selectedProduct.id 
+          ? { ...item, quantity: item.quantity + quantity }
+          : item
+      ))
+      toast.success(`${quantity}x ${selectedProduct.name} sepete eklendi!`)
+    } else {
+      // Add new item
+      setCart([...cart, {
+        id: selectedProduct.id,
+        name: selectedProduct.name,
+        price: selectedProduct.price,
+        image: selectedProduct.image,
+        quantity: quantity
+      }])
+      toast.success(`${selectedProduct.name} sepete eklendi!`)
+    }
+    
     closeProductModal()
+  }
+
+  // Update cart item quantity
+  const updateCartItemQuantity = (itemId, newQuantity) => {
+    if (newQuantity <= 0) {
+      removeFromCart(itemId)
+      return
+    }
+    
+    setCart(cart.map(item => 
+      item.id === itemId ? { ...item, quantity: newQuantity } : item
+    ))
+  }
+
+  // Remove from cart
+  const removeFromCart = (itemId) => {
+    setCart(cart.filter(item => item.id !== itemId))
+    toast.success('Ürün sepetten kaldırıldı')
+  }
+
+  // Clear cart
+  const clearCart = () => {
+    setCart([])
+    toast.success('Sepet temizlendi')
+  }
+
+  // Calculate total
+  const getCartTotal = () => {
+    return cart.reduce((total, item) => total + (item.price * item.quantity), 0)
+  }
+
+  // Submit order
+  const handleSubmitOrder = async () => {
+    if (cart.length === 0) {
+      toast.error('Sepetiniz boş!')
+      return
+    }
+
+    try {
+      const orderData = {
+        tableNumber: parseInt(tableId),
+        items: cart.map(item => ({
+          menuItemId: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity
+        })),
+        totalAmount: getCartTotal()
+      }
+
+      const response = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderData)
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast.success('Siparişiniz alındı! 🎉')
+        clearCart()
+        closeCartModal()
+      } else {
+        toast.error('Sipariş gönderilemedi: ' + data.error)
+      }
+    } catch (error) {
+      console.error('Order error:', error)
+      toast.error('Bir hata oluştu')
+    }
   }
 
   if (loading) {
@@ -301,7 +318,24 @@ export default function SubcategoriesPage({ params }) {
             </motion.p>
           </div>
           
-          <div className="w-12"></div>
+          {/* Cart Button */}
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={openCartModal}
+            className="relative p-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 rounded-xl shadow-lg transition-all duration-300"
+          >
+            <ShoppingCart className="w-6 h-6 text-white" />
+            {cart.length > 0 && (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center"
+              >
+                {cart.reduce((total, item) => total + item.quantity, 0)}
+              </motion.div>
+            )}
+          </motion.button>
         </div>
       </motion.div>
 
@@ -451,7 +485,6 @@ export default function SubcategoriesPage({ params }) {
                   className="group cursor-pointer"
                 >
                   <div className="bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300">
-                    {/* Product Image */}
                     <div className="relative h-48 bg-gradient-to-br from-teal-100 to-cyan-100">
                       {product.image ? (
                         <Image
@@ -466,14 +499,12 @@ export default function SubcategoriesPage({ params }) {
                         </div>
                       )}
                       
-                      {/* Quick Add Button */}
                       <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                         <div className="bg-teal-500 text-white p-2 rounded-full shadow-xl">
                           <Plus className="w-5 h-5" />
                         </div>
                       </div>
 
-                      {/* Spicy Level */}
                       {product.spicyLevel > 0 && (
                         <div className="absolute top-3 left-3 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1">
                           <Flame className="w-3 h-3" />
@@ -482,7 +513,6 @@ export default function SubcategoriesPage({ params }) {
                       )}
                     </div>
 
-                    {/* Product Info */}
                     <div className="p-4">
                       <h3 className="font-bold text-teal-900 text-lg leading-tight mb-2 line-clamp-2 group-hover:text-teal-700 transition-colors">
                         {product.name}
@@ -530,7 +560,6 @@ export default function SubcategoriesPage({ params }) {
               onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
             >
-              {/* Modal Image */}
               <div className="relative h-64">
                 {selectedProduct.image ? (
                   <Image
@@ -553,7 +582,6 @@ export default function SubcategoriesPage({ params }) {
                 </button>
               </div>
 
-              {/* Modal Content */}
               <div className="p-6">
                 <h2 className="text-3xl font-black text-teal-900 mb-2">
                   {selectedProduct.name}
@@ -569,7 +597,6 @@ export default function SubcategoriesPage({ params }) {
                     ₺{selectedProduct.price?.toFixed(2)}
                   </span>
                   
-                  {/* Quantity Selector */}
                   <div className="flex items-center gap-3 bg-teal-100 rounded-full p-1">
                     <button
                       onClick={() => setQuantity(Math.max(1, quantity - 1))}
@@ -589,7 +616,6 @@ export default function SubcategoriesPage({ params }) {
                   </div>
                 </div>
 
-                {/* Add to Cart Button */}
                 <button
                   onClick={handleAddToCart}
                   className="w-full bg-gradient-to-r from-teal-500 to-cyan-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-3"
@@ -598,6 +624,150 @@ export default function SubcategoriesPage({ params }) {
                   Sepete Ekle - ₺{(selectedProduct.price * quantity).toFixed(2)}
                 </button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Cart Modal */}
+      <AnimatePresence>
+        {showCartModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
+            onClick={closeCartModal}
+          >
+            <motion.div
+              initial={{ y: 300, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 300, opacity: 0 }}
+              transition={{ type: "spring", damping: 25 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+            >
+              {/* Cart Header */}
+              <div className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <ShoppingCart className="w-8 h-8" />
+                    <div>
+                      <h2 className="text-2xl font-black">Sepetim</h2>
+                      <p className="text-teal-100 text-sm">Masa {tableId}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={closeCartModal}
+                    className="bg-white/20 backdrop-blur-sm p-2 rounded-full hover:bg-white/30 transition-colors"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Cart Items */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {cart.length === 0 ? (
+                  <div className="text-center py-12">
+                    <ShoppingCart className="w-20 h-20 text-teal-200 mx-auto mb-4" />
+                    <h3 className="text-xl font-bold text-teal-800 mb-2">Sepetiniz Boş</h3>
+                    <p className="text-teal-600">Ürün ekleyerek başlayın</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {cart.map((item) => (
+                      <motion.div
+                        key={item.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20 }}
+                        className="bg-teal-50 rounded-xl p-4 flex items-center gap-4"
+                      >
+                        {/* Item Image */}
+                        <div className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-teal-100 to-cyan-100">
+                          {item.image ? (
+                            <Image
+                              src={item.image}
+                              alt={item.name}
+                              fill
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="flex items-center justify-center h-full">
+                              <Coffee className="w-8 h-8 text-teal-300" />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Item Info */}
+                        <div className="flex-1">
+                          <h4 className="font-bold text-teal-900 mb-1">{item.name}</h4>
+                          <p className="text-teal-700 font-semibold">
+                            ₺{item.price.toFixed(2)} × {item.quantity} = ₺{(item.price * item.quantity).toFixed(2)}
+                          </p>
+                        </div>
+
+                        {/* Quantity Controls */}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => updateCartItemQuantity(item.id, item.quantity - 1)}
+                            className="bg-white p-2 rounded-lg hover:bg-teal-100 transition-colors"
+                          >
+                            <Minus className="w-4 h-4 text-teal-700" />
+                          </button>
+                          <span className="font-bold text-teal-900 w-8 text-center">
+                            {item.quantity}
+                          </span>
+                          <button
+                            onClick={() => updateCartItemQuantity(item.id, item.quantity + 1)}
+                            className="bg-white p-2 rounded-lg hover:bg-teal-100 transition-colors"
+                          >
+                            <Plus className="w-4 h-4 text-teal-700" />
+                          </button>
+                        </div>
+
+                        {/* Remove Button */}
+                        <button
+                          onClick={() => removeFromCart(item.id)}
+                          className="bg-red-100 text-red-600 p-2 rounded-lg hover:bg-red-200 transition-colors"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Cart Footer */}
+              {cart.length > 0 && (
+                <div className="border-t border-teal-100 p-6 space-y-4">
+                  {/* Total */}
+                  <div className="flex items-center justify-between text-2xl font-black text-teal-900">
+                    <span>Toplam:</span>
+                    <span>₺{getCartTotal().toFixed(2)}</span>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={clearCart}
+                      className="bg-red-100 text-red-700 py-3 rounded-xl font-bold hover:bg-red-200 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                      Temizle
+                    </button>
+                    <button
+                      onClick={handleSubmitOrder}
+                      className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2"
+                    >
+                      <Send className="w-5 h-5" />
+                      Sipariş Ver
+                    </button>
+                  </div>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}

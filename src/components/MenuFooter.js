@@ -15,8 +15,8 @@ export default function MenuFooter() {
     },
     {
       icon: Heart,
-      title: "Kaliteli Lezzetler",
-      description: "Taze malzeme, özenli servis"
+      title: "Karabükte Düzenli İkramın Tek Adresi",
+      description: "Sürekli ikramlarımızla sizi mutlu ediyoruz"
     }
   ]
 
