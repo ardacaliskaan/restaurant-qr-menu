@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Plus, Edit2, Trash2, Eye, EyeOff, Search, Filter,
   ChefHat, Clock, Flame, Star, Package, Image as ImageIcon,
-  X, Save, AlertCircle, Tag, Utensils, ShoppingCart
+  X, Save, AlertCircle, Tag, Utensils, ShoppingCart, Sparkles
 } from 'lucide-react'
 import Image from 'next/image'
 import toast from 'react-hot-toast'
@@ -41,6 +41,7 @@ export default function AdminMenuPage() {
       removable: [],
       extras: []
     },
+    requiredOptions: [], // 🆕 ZORUNLU SEÇİMLER
     nutritionInfo: {
       calories: '',
       protein: '',
@@ -144,6 +145,7 @@ export default function AdminMenuPage() {
       image: item.image || null,
       ingredients: item.ingredients || [],
       customizations: item.customizations || { removable: [], extras: [] },
+      requiredOptions: item.requiredOptions || [], // 🆕
       nutritionInfo: item.nutritionInfo || { calories: '', protein: '', carbs: '', fat: '' },
       allergens: item.allergens || [],
       dietaryInfo: item.dietaryInfo || {
@@ -175,6 +177,7 @@ export default function AdminMenuPage() {
       image: null,
       ingredients: [],
       customizations: { removable: [], extras: [] },
+      requiredOptions: [], // 🆕
       nutritionInfo: { calories: '', protein: '', carbs: '', fat: '' },
       allergens: [],
       dietaryInfo: {
@@ -206,6 +209,82 @@ export default function AdminMenuPage() {
       
       return newData
     })
+  }
+
+  // 🆕 ZORUNLU SEÇİM FONKSİYONLARI
+  const addRequiredOption = () => {
+    const newOption = {
+      id: `option-${Date.now()}`,
+      label: '',
+      required: true,
+      options: []
+    }
+    setFormData(prev => ({
+      ...prev,
+      requiredOptions: [...prev.requiredOptions, newOption]
+    }))
+  }
+
+  const updateRequiredOption = (optionId, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      requiredOptions: prev.requiredOptions.map(opt =>
+        opt.id === optionId ? { ...opt, [field]: value } : opt
+      )
+    }))
+  }
+
+  const removeRequiredOption = (optionId) => {
+    setFormData(prev => ({
+      ...prev,
+      requiredOptions: prev.requiredOptions.filter(opt => opt.id !== optionId)
+    }))
+  }
+
+  const addOptionChoice = (optionId) => {
+    const newChoice = {
+      value: '',
+      label: '',
+      price: 0
+    }
+    setFormData(prev => ({
+      ...prev,
+      requiredOptions: prev.requiredOptions.map(opt =>
+        opt.id === optionId
+          ? { ...opt, options: [...opt.options, newChoice] }
+          : opt
+      )
+    }))
+  }
+
+  const updateOptionChoice = (optionId, choiceIndex, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      requiredOptions: prev.requiredOptions.map(opt =>
+        opt.id === optionId
+          ? {
+              ...opt,
+              options: opt.options.map((choice, idx) =>
+                idx === choiceIndex ? { ...choice, [field]: value } : choice
+              )
+            }
+          : opt
+      )
+    }))
+  }
+
+  const removeOptionChoice = (optionId, choiceIndex) => {
+    setFormData(prev => ({
+      ...prev,
+      requiredOptions: prev.requiredOptions.map(opt =>
+        opt.id === optionId
+          ? {
+              ...opt,
+              options: opt.options.filter((_, idx) => idx !== choiceIndex)
+            }
+          : opt
+      )
+    }))
   }
 
   const handleSubmit = async (e) => {
@@ -392,7 +471,7 @@ export default function AdminMenuPage() {
               <p className="text-gray-600 text-sm font-medium">Ortalama Fiyat</p>
               <p className="text-3xl font-bold text-gray-900">
                 ₺{menuItems.length > 0 
-  ? (menuItems.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0) / menuItems.length).toFixed(2)
+                  ? (menuItems.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0) / menuItems.length).toFixed(2)
                   : '0.00'
                 }
               </p>
@@ -560,7 +639,7 @@ export default function AdminMenuPage() {
                     {item.name}
                   </h3>
                   <span className="text-xl font-bold text-amber-600">
-₺{(parseFloat(item.price) || 0).toFixed(2)}
+                    ₺{(parseFloat(item.price) || 0).toFixed(2)}
                   </span>
                 </div>
                 
@@ -920,7 +999,7 @@ export default function AdminMenuPage() {
                     </div>
                   )}
 
-                  {/* Customization Tab */}
+                  {/* Customization Tab - 🆕 ZORUNLU SEÇİMLER BURAYA */}
                   {activeTab === 'customization' && (
                     <div className="space-y-6">
                       <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
@@ -931,6 +1010,135 @@ export default function AdminMenuPage() {
                         <p className="text-purple-700 text-sm">
                           Müşterilerin çıkarabileceği veya ekstra olarak ekleyebileceği malzemeleri belirleyin.
                         </p>
+                      </div>
+
+                      {/* 🆕 ZORUNLU SEÇİMLER BÖLÜMÜ */}
+                      <div>
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                            <Sparkles className="w-5 h-5 text-purple-600" />
+                            Zorunlu Seçimler
+                          </h4>
+                          <button
+                            type="button"
+                            onClick={addRequiredOption}
+                            className="text-sm bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-1"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Seçim Grubu Ekle
+                          </button>
+                        </div>
+                        <p className="text-gray-600 text-sm mb-4">
+                          Müşterilerin sipariş verirken seçmesi gereken opsiyonlar (örn: Boyut, Şeker seviyesi, İçecek sıcaklığı)
+                        </p>
+
+                        {formData.requiredOptions.length === 0 ? (
+                          <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center">
+                            <Sparkles className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                            <p className="text-gray-500 mb-2">Henüz zorunlu seçim yok</p>
+                            <p className="text-gray-400 text-sm mb-4">
+                              Müşterilerinizin ürünü sipariş ederken seçim yapması gereken opsiyon grupları ekleyin
+                            </p>
+                            <button
+                              type="button"
+                              onClick={addRequiredOption}
+                              className="text-purple-600 hover:text-purple-700 font-medium text-sm"
+                            >
+                              İlk seçim grubunu oluştur
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {formData.requiredOptions.map((opt, optIdx) => (
+                              <div key={opt.id} className="border-2 border-purple-200 rounded-xl p-4 bg-purple-50/50">
+                                <div className="flex items-start justify-between mb-3">
+                                  <div className="flex-1">
+                                    <input
+                                      type="text"
+                                      value={opt.label}
+                                      onChange={(e) => updateRequiredOption(opt.id, 'label', e.target.value)}
+                                      placeholder="Seçim Grubu Adı (örn: Boyut, Şeker Seviyesi, Sıcaklık)"
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent font-medium"
+                                    />
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeRequiredOption(opt.id)}
+                                    className="ml-3 p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                                    title="Seçim grubunu sil"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+
+                                <div className="flex items-center mb-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={opt.required}
+                                    onChange={(e) => updateRequiredOption(opt.id, 'required', e.target.checked)}
+                                    className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                                  />
+                                  <label className="ml-2 text-sm text-gray-700">Bu seçim zorunlu</label>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <label className="text-sm font-medium text-gray-700">Seçenekler:</label>
+                                    <button
+                                      type="button"
+                                      onClick={() => addOptionChoice(opt.id)}
+                                      className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded hover:bg-purple-200 transition-colors"
+                                    >
+                                      + Seçenek Ekle
+                                    </button>
+                                  </div>
+
+                                  {opt.options.length === 0 ? (
+                                    <div className="text-center py-4 border border-dashed border-gray-300 rounded-lg bg-white">
+                                      <p className="text-sm text-gray-500">Henüz seçenek yok</p>
+                                      <p className="text-xs text-gray-400 mt-1">Yukarıdaki butondan seçenek ekleyin</p>
+                                    </div>
+                                  ) : (
+                                    opt.options.map((choice, choiceIdx) => (
+                                      <div key={choiceIdx} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-gray-200">
+                                        <input
+                                          type="text"
+                                          value={choice.value}
+                                          onChange={(e) => updateOptionChoice(opt.id, choiceIdx, 'value', e.target.value)}
+                                          placeholder="Değer (örn: small)"
+                                          className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                        />
+                                        <input
+                                          type="text"
+                                          value={choice.label}
+                                          onChange={(e) => updateOptionChoice(opt.id, choiceIdx, 'label', e.target.value)}
+                                          placeholder="Görünen Ad (örn: Küçük)"
+                                          className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                        />
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          value={choice.price}
+                                          onChange={(e) => updateOptionChoice(opt.id, choiceIdx, 'price', parseFloat(e.target.value) || 0)}
+                                          placeholder="Fiyat"
+                                          className="w-24 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => removeOptionChoice(opt.id, choiceIdx)}
+                                          className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                          title="Seçeneği sil"
+                                        >
+                                          <X className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
                       {/* Removable Ingredients */}

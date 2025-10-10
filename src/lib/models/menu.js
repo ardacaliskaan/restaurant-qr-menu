@@ -51,6 +51,27 @@ export const validateMenuItem = (data) => {
   if (data.spicyLevel && (data.spicyLevel < 0 || data.spicyLevel > 5)) {
     errors.push('Acılık seviyesi 0-5 arasında olmalıdır')
   }
+
+  // 🆕 ZORUNLU SEÇİMLER VALİDASYONU
+  if (data.requiredOptions && Array.isArray(data.requiredOptions)) {
+    data.requiredOptions.forEach((option, index) => {
+      if (!option.label || option.label.trim().length < 2) {
+        errors.push(`Zorunlu seçim ${index + 1}: Grup adı en az 2 karakter olmalıdır`)
+      }
+      
+      if (!option.options || option.options.length === 0) {
+        errors.push(`Zorunlu seçim ${index + 1}: En az bir seçenek eklenmelidir`)
+      }
+      
+      if (option.options) {
+        option.options.forEach((choice, choiceIndex) => {
+          if (!choice.value || !choice.label) {
+            errors.push(`Zorunlu seçim ${index + 1}, Seçenek ${choiceIndex + 1}: Değer ve görünen ad zorunludur`)
+          }
+        })
+      }
+    })
+  }
   
   return errors
 }
@@ -71,6 +92,7 @@ export const createMenuItem = (data) => {
       removable: data.customizations?.removable || [],
       extras: data.customizations?.extras || []
     },
+    requiredOptions: data.requiredOptions || [], // 🆕
     nutritionInfo: {
       calories: data.nutritionInfo?.calories || null,
       protein: data.nutritionInfo?.protein || null,
@@ -111,6 +133,7 @@ export const updateMenuItem = (data) => {
       removable: data.customizations?.removable || [],
       extras: data.customizations?.extras || []
     },
+    requiredOptions: data.requiredOptions || [], // 🆕
     nutritionInfo: {
       calories: data.nutritionInfo?.calories || null,
       protein: data.nutritionInfo?.protein || null,
@@ -138,27 +161,22 @@ export const updateMenuItem = (data) => {
 export const buildMenuFilter = (params) => {
   const filter = {}
   
-  // Kategori filtreleme
   if (params.categoryId) {
     filter.categoryId = params.categoryId
   }
   
-  // Alt kategori filtreleme
   if (params.subcategoryId) {
     filter.subcategoryId = params.subcategoryId
   }
   
-  // Availability filtreleme
   if (params.availableOnly === 'true') {
     filter.available = { $ne: false }
   }
   
-  // Featured filtreleme
   if (params.featuredOnly === 'true') {
     filter.featured = true
   }
   
-  // Diyet filtreleme
   if (params.isVegan === 'true') {
     filter['dietaryInfo.isVegan'] = true
   }
@@ -171,7 +189,6 @@ export const buildMenuFilter = (params) => {
     filter['dietaryInfo.isGlutenFree'] = true
   }
   
-  // Fiyat aralığı filtreleme
   if (params.minPrice || params.maxPrice) {
     filter.price = {}
     if (params.minPrice) {
@@ -182,7 +199,6 @@ export const buildMenuFilter = (params) => {
     }
   }
   
-  // Arama filtreleme
   if (params.search) {
     filter.$or = [
       { name: { $regex: params.search, $options: 'i' } },
@@ -212,11 +228,11 @@ export const buildMenuSort = (sortBy = 'sortOrder', sortOrder = 'asc') => {
       break
     case 'featured':
       sort.featured = sortOrder === 'desc' ? -1 : 1
-      sort.sortOrder = 1 // Secondary sort
+      sort.sortOrder = 1
       break
     default:
       sort.sortOrder = sortOrder === 'desc' ? -1 : 1
-      sort.name = 1 // Secondary sort
+      sort.name = 1
   }
   
   return sort
@@ -224,13 +240,11 @@ export const buildMenuSort = (sortBy = 'sortOrder', sortOrder = 'asc') => {
 
 // Menu item helpers
 export const enrichMenuItem = (item, categories = [], ingredients = []) => {
-  // Kategori bilgilerini ekle
   const category = categories.find(cat => cat.id === item.categoryId)
   const subcategory = item.subcategoryId 
     ? categories.find(cat => cat.id === item.subcategoryId)
     : null
   
-  // Malzeme bilgilerini ekle
   const enrichedIngredients = (item.ingredients || []).map(ingredientId => {
     return ingredients.find(ing => ing.id === ingredientId)
   }).filter(Boolean)
@@ -259,7 +273,6 @@ export const getMenuStatistics = (menuItems) => {
       }
     : { min: 0, max: 0 }
   
-  // Kategori dağılımı
   const categoryStats = {}
   menuItems.forEach(item => {
     const catId = item.categoryId
@@ -268,7 +281,6 @@ export const getMenuStatistics = (menuItems) => {
     }
   })
   
-  // Diyet dağılımı
   const dietaryStats = {
     vegan: menuItems.filter(item => item.dietaryInfo?.isVegan).length,
     vegetarian: menuItems.filter(item => item.dietaryInfo?.isVegetarian).length,
@@ -284,4 +296,45 @@ export const getMenuStatistics = (menuItems) => {
     categoryStats,
     dietaryStats
   }
+}
+
+// 🆕 Zorunlu Seçim Helper Fonksiyonları
+export const validateRequiredOptions = (requiredOptions, selectedOptions) => {
+  const errors = []
+  
+  if (!requiredOptions || requiredOptions.length === 0) {
+    return { isValid: true, errors: [] }
+  }
+  
+  requiredOptions.forEach(option => {
+    if (option.required) {
+      const selected = selectedOptions?.find(s => s.optionId === option.id)
+      if (!selected || !selected.value) {
+        errors.push(`"${option.label}" seçimi zorunludur`)
+      }
+    }
+  })
+  
+  return {
+    isValid: errors.length === 0,
+    errors
+  }
+}
+
+export const calculateRequiredOptionsPrice = (requiredOptions, selectedOptions) => {
+  if (!requiredOptions || !selectedOptions) return 0
+  
+  let totalPrice = 0
+  
+  selectedOptions.forEach(selected => {
+    const option = requiredOptions.find(opt => opt.id === selected.optionId)
+    if (option) {
+      const choice = option.options.find(c => c.value === selected.value)
+      if (choice && choice.price) {
+        totalPrice += parseFloat(choice.price)
+      }
+    }
+  })
+  
+  return totalPrice
 }
