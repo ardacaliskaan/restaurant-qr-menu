@@ -349,7 +349,8 @@ export default function ProductsPage({ params }) {
           return
         }
         
-        // Rate Limit
+        // Rate LimitDenemee
+
         if (result.code === 'RATE_LIMIT_EXCEEDED') {
           const waitTime = result.retryAfter ? Math.ceil(result.retryAfter / 60) : 2
           toast.error(`${result.error}\n\nLütfen ${waitTime} dakika bekleyin.`, {
@@ -374,7 +375,11 @@ export default function ProductsPage({ params }) {
           const confirmed = window.confirm(
             `${result.error}\n\nTekrar sipariş vermek istediğinizden emin misiniz?`
           )
-          
+          Denemee
+Denemee
+Denemee
+Denemee
+
           if (confirmed) {
             // Confirmed flag ile tekrar gönder
             orderData.confirmed = true
@@ -756,6 +761,19 @@ export default function ProductsPage({ params }) {
                     rows={3}
                   />
                 </div>
+DenemeeDenemee
+Denemee
+Denemee
+Denemee
+Denemee
+Denemee
+Denemee
+Denemee
+Denemee
+Denemee
+Denemee
+Denemee
+
 
                 {/* Add to Cart Button */}
                 <button
@@ -769,7 +787,7 @@ export default function ProductsPage({ params }) {
           </motion.div>
         )}
       </AnimatePresence>
-
+Denemee
       {/* Cart Modal */}
       <AnimatePresence>
         {showCartModal && (

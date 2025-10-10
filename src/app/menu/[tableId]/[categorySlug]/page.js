@@ -4,12 +4,14 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   ArrowLeft, Coffee, Thermometer, Snowflake, ChevronRight, Package, 
-  Sparkles, Layers, GraduationCap, Tag, Heart, Instagram, Facebook, 
-  Twitter, Grid3x3, Plus, Minus, ShoppingCart, X, Flame, Trash2, Send, Check, Clock
+  Sparkles, Layers, Grid3x3, Plus, Minus, ShoppingCart, X, Flame, 
+  Trash2, Send, Check, Clock, AlertCircle, MessageSquare
 } from 'lucide-react'
 import Image from 'next/image'
 import toast from 'react-hot-toast'
 import MenuFooter from '@/components/MenuFooter'
+// 🔐 YENİ: Session Manager Import
+import { SessionManager } from '@/lib/sessionManager'
 
 export default function SubcategoriesPage({ params }) {
   const [subcategories, setSubcategories] = useState([])
@@ -23,6 +25,17 @@ export default function SubcategoriesPage({ params }) {
   const [showCartModal, setShowCartModal] = useState(false)
   const [quantity, setQuantity] = useState(1)
   const [cart, setCart] = useState([])
+  
+  // 🔐 YENİ: Session States
+  const [session, setSession] = useState(null)
+  const [sessionManager, setSessionManager] = useState(null)
+  const [sessionLoading, setSessionLoading] = useState(true)
+  
+  // 🆕 YENİ: Zorunlu Seçimler ve Özelleştirme
+  const [selectedOptions, setSelectedOptions] = useState({}) // Zorunlu seçimler
+  const [customizations, setCustomizations] = useState({ removed: [], extras: [] })
+  const [customerNotes, setCustomerNotes] = useState('') // Müşteri notu
+  
   const router = useRouter()
 
   const subcategoryIcons = {
@@ -63,11 +76,52 @@ export default function SubcategoriesPage({ params }) {
     unwrapParams()
   }, [params])
 
+  // 🔐 YENİ: Session Başlatma (sadece ürünler varsa)
+  useEffect(() => {
+    if (tableId && products.length > 0) {
+      initSession()
+    }
+  }, [tableId, products])
+
   useEffect(() => {
     if (tableId && categorySlug) {
       fetchData()
     }
   }, [tableId, categorySlug])
+
+  // 🔐 YENİ: Session Başlatma Fonksiyonu
+  const initSession = async () => {
+    try {
+      setSessionLoading(true)
+      
+      const manager = new SessionManager(parseInt(tableId))
+      setSessionManager(manager)
+      
+      console.log('🔐 Initializing session for table:', tableId)
+      
+      const result = await manager.initSession()
+      
+      if (result.success) {
+        setSession(result.session)
+        console.log('✅ Session initialized:', result.session.sessionId)
+        console.log('📱 Device fingerprint:', manager.deviceInfo.fingerprint)
+        
+        if (result.isNew) {
+          toast.success('Hoş geldiniz! 🎉', {
+            duration: 3000,
+            icon: '👋'
+          })
+        }
+      } else {
+        console.error('❌ Session init failed:', result.error)
+        toast.error('Bağlantı hatası. Sipariş verirken sorun yaşayabilirsiniz.')
+      }
+    } catch (error) {
+      console.error('Session error:', error)
+    } finally {
+      setSessionLoading(false)
+    }
+  }
 
   const fetchData = async () => {
     try {
@@ -123,6 +177,9 @@ export default function SubcategoriesPage({ params }) {
   const openProductModal = (product) => {
     setSelectedProduct(product)
     setQuantity(1)
+    setSelectedOptions({}) // Reset seçimler
+    setCustomizations({ removed: [], extras: [] }) // Reset özelleştirmeler
+    setCustomerNotes('') // Reset notlar
     setShowProductModal(true)
   }
 
@@ -130,6 +187,9 @@ export default function SubcategoriesPage({ params }) {
     setShowProductModal(false)
     setSelectedProduct(null)
     setQuantity(1)
+    setSelectedOptions({})
+    setCustomizations({ removed: [], extras: [] })
+    setCustomerNotes('')
   }
 
   const openCartModal = () => {
@@ -140,43 +200,91 @@ export default function SubcategoriesPage({ params }) {
     setShowCartModal(false)
   }
 
-  const handleAddToCart = () => {
-    const existingItem = cart.find(item => item.id === selectedProduct.id)
+  // 🆕 YENİ: Zorunlu seçim kontrolü
+  const canAddToCart = () => {
+    if (!selectedProduct?.requiredOptions) return true
     
-    if (existingItem) {
-      setCart(cart.map(item => 
-        item.id === selectedProduct.id 
-          ? { ...item, quantity: item.quantity + quantity }
-          : item
-      ))
-      toast.success(`${quantity}x ${selectedProduct.name} sepete eklendi!`)
-    } else {
-      setCart([...cart, {
-        id: selectedProduct.id,
-        name: selectedProduct.name,
-        price: selectedProduct.price,
-        image: selectedProduct.image,
-        quantity: quantity
-      }])
-      toast.success(`${selectedProduct.name} sepete eklendi!`)
+    for (const option of selectedProduct.requiredOptions) {
+      if (option.required && !selectedOptions[option.id]) {
+        return false
+      }
     }
+    return true
+  }
+
+  // 🆕 YENİ: Fiyat hesaplama (zorunlu seçimler + ekstralar dahil)
+  const calculateItemPrice = () => {
+    let basePrice = selectedProduct.price
+    
+    // Zorunlu seçimlerin fiyatını ekle
+    if (selectedProduct?.requiredOptions) {
+      selectedProduct.requiredOptions.forEach(optGroup => {
+        const selectedValue = selectedOptions[optGroup.id]
+        if (selectedValue) {
+          const option = optGroup.options.find(opt => opt.value === selectedValue)
+          if (option && option.price) {
+            basePrice += option.price
+          }
+        }
+      })
+    }
+    
+    // Ekstra malzemelerin fiyatını ekle
+    customizations.extras.forEach(extra => {
+      basePrice += extra.price || 0
+    })
+    
+    return basePrice
+  }
+
+  const handleAddToCart = () => {
+    if (!canAddToCart()) {
+      toast.error('Lütfen zorunlu seçimleri yapın!', {
+        icon: '⚠️'
+      })
+      return
+    }
+    
+    const itemPrice = calculateItemPrice()
+    
+    // Sepet item'ı oluştur
+    const cartItem = {
+      id: `${selectedProduct.id}-${Date.now()}`, // Unique ID için timestamp ekle
+      menuItemId: selectedProduct.id,
+      name: selectedProduct.name,
+      basePrice: selectedProduct.price,
+      price: itemPrice,
+      image: selectedProduct.image,
+      quantity: quantity,
+      // Zorunlu seçimler
+      selectedOptions: selectedOptions,
+      // Özelleştirmeler
+      customizations: customizations,
+      // Notlar
+      notes: customerNotes
+    }
+    
+    setCart([...cart, cartItem])
+    toast.success(`${selectedProduct.name} sepete eklendi!`, {
+      icon: '✅'
+    })
     
     closeProductModal()
   }
 
-  const updateCartItemQuantity = (itemId, newQuantity) => {
+  const updateCartItemQuantity = (item, newQuantity) => {
     if (newQuantity <= 0) {
-      removeFromCart(itemId)
+      removeFromCart(item)
       return
     }
     
-    setCart(cart.map(item => 
-      item.id === itemId ? { ...item, quantity: newQuantity } : item
+    setCart(cart.map(cartItem => 
+      cartItem.id === item.id ? { ...cartItem, quantity: newQuantity } : cartItem
     ))
   }
 
-  const removeFromCart = (itemId) => {
-    setCart(cart.filter(item => item.id !== itemId))
+  const removeFromCart = (item) => {
+    setCart(cart.filter(cartItem => cartItem.id !== item.id))
     toast.success('Ürün sepetten kaldırıldı')
   }
 
@@ -195,16 +303,31 @@ export default function SubcategoriesPage({ params }) {
       return
     }
 
+    // 🔐 Session kontrolü
+    if (!session || !sessionManager) {
+      toast.error('Oturum hatası! Lütfen sayfayı yenileyin.')
+      return
+    }
+
     try {
+      const deviceFingerprint = sessionManager.deviceInfo.fingerprint
+      
       const orderData = {
+        sessionId: session.sessionId,
+        deviceFingerprint: deviceFingerprint,
         tableNumber: parseInt(tableId),
+        tableId: tableId,
         items: cart.map(item => ({
-          menuItemId: item.id,
+          menuItemId: item.menuItemId,
           name: item.name,
           price: item.price,
-          quantity: item.quantity
+          quantity: item.quantity,
+          customizations: item.customizations,
+          selectedOptions: item.selectedOptions,
+          notes: item.notes
         })),
-        totalAmount: getCartTotal()
+        totalAmount: getCartTotal(),
+        customerNotes: cart.map(item => item.notes).filter(n => n).join(' | ')
       }
 
       const response = await fetch('/api/orders', {
@@ -216,11 +339,49 @@ export default function SubcategoriesPage({ params }) {
       const data = await response.json()
 
       if (data.success) {
-        toast.success('Siparişiniz alındı! 🎉')
+        toast.success('Siparişiniz alındı! 🎉', {
+          duration: 4000,
+          icon: '🎊'
+        })
         clearCart()
         closeCartModal()
       } else {
-        toast.error('Sipariş gönderilemedi: ' + data.error)
+        // Hata koduna göre aksiyon
+        switch (data.code) {
+          case 'INVALID_SESSION':
+          case 'SESSION_EXPIRED':
+            toast.error('Oturum süresi doldu! Lütfen QR kodu tekrar okutun.')
+            localStorage.removeItem(`session_table_${tableId}`)
+            setSession(null)
+            break
+          case 'RATE_LIMIT_EXCEEDED':
+            toast.error(data.error)
+            break
+          case 'SLOW_DOWN':
+          case 'BOT_DETECTED':
+            toast.error('Çok hızlı sipariş veriyorsunuz. Lütfen bekleyin.')
+            break
+          case 'DUPLICATE_SUSPECTED':
+            const confirm = window.confirm(data.error)
+            if (confirm) {
+              // Confirmed flag ekle ve tekrar gönder
+              orderData.confirmed = true
+              const retryResponse = await fetch('/api/orders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(orderData)
+              })
+              const retryData = await retryResponse.json()
+              if (retryData.success) {
+                toast.success('Siparişiniz alındı! 🎉')
+                clearCart()
+                closeCartModal()
+              }
+            }
+            break
+          default:
+            toast.error(data.error || 'Sipariş gönderilemedi')
+        }
       }
     } catch (error) {
       console.error('Order error:', error)
@@ -251,7 +412,7 @@ export default function SubcategoriesPage({ params }) {
               animate={{ opacity: 1 }}
               className="text-teal-700 text-lg font-medium"
             >
-              Yükleniyor...
+              {sessionLoading ? 'Bağlantı kuruluyor...' : 'Yükleniyor...'}
             </motion.p>
           </div>
         </div>
@@ -301,6 +462,12 @@ export default function SubcategoriesPage({ params }) {
             >
               Masa {tableId}
             </motion.p>
+            {/* 🔐 Session Durumu */}
+            {session && (
+              <p className="text-xs text-green-600 mt-0.5">
+                🔐 Güvenli bağlantı aktif
+              </p>
+            )}
           </div>
           
           <motion.button
@@ -372,7 +539,6 @@ export default function SubcategoriesPage({ params }) {
                               className="object-cover transition-transform duration-700 group-hover:scale-110"
                             />
                             <div className="absolute inset-0 bg-gradient-to-br from-teal-50/95 via-cyan-50/90 to-teal-50/85 group-hover:from-teal-50/90 group-hover:via-cyan-50/85 group-hover:to-teal-50/80 transition-all duration-500" />
-                            <div className="absolute inset-0 bg-gradient-to-tl from-teal-200/30 to-cyan-200/30 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                           </div>
                         ) : (
                           <div className="absolute inset-0 bg-gradient-to-br from-teal-100 via-cyan-100 to-emerald-100" />
@@ -407,9 +573,6 @@ export default function SubcategoriesPage({ params }) {
                             )}
                           </div>
                         </div>
-
-                        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-                        <div className="absolute inset-0 border-2 border-teal-300/0 group-hover:border-teal-300/60 rounded-2xl transition-all duration-300" />
                       </div>
                     </motion.div>
                   )
@@ -558,6 +721,7 @@ export default function SubcategoriesPage({ params }) {
         </motion.div>
       </div>
 
+      {/* 🆕 GÜNCELLENMIŞ: Product Modal - Zorunlu Seçimler + Notlar */}
       <AnimatePresence>
         {showProductModal && selectedProduct && (
           <motion.div
@@ -606,7 +770,7 @@ export default function SubcategoriesPage({ params }) {
                 )}
               </div>
 
-              <div className="p-6">
+              <div className="p-6 space-y-6">
                 <div className="flex flex-wrap gap-2 mb-3">
                   {selectedProduct.dietaryInfo?.isVegan && (
                     <span className="text-sm bg-green-100 text-green-700 px-3 py-1 rounded-full font-semibold">
@@ -631,52 +795,216 @@ export default function SubcategoriesPage({ params }) {
                   )}
                 </div>
 
-                <h2 className="text-3xl font-black text-teal-900 mb-2">
-                  {selectedProduct.name}
-                </h2>
-                {selectedProduct.description && (
-                  <p className="text-teal-600 mb-4">
-                    {selectedProduct.description}
-                  </p>
+                <div>
+                  <h2 className="text-3xl font-black text-teal-900 mb-2">
+                    {selectedProduct.name}
+                  </h2>
+                  {selectedProduct.description && (
+                    <p className="text-teal-600 mb-4">
+                      {selectedProduct.description}
+                    </p>
+                  )}
+                </div>
+
+                {/* 🆕 YENİ: Zorunlu Seçimler */}
+                {selectedProduct.requiredOptions?.map((optionGroup) => (
+                  <div key={optionGroup.id} className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-teal-900">
+                        {optionGroup.label}
+                      </h3>
+                      {optionGroup.required && (
+                        <span className="text-red-500 text-sm font-semibold">* Zorunlu</span>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                      {optionGroup.options.map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => setSelectedOptions({
+                            ...selectedOptions,
+                            [optionGroup.id]: option.value
+                          })}
+                          className={`p-3 rounded-lg border-2 font-medium transition-all ${
+                            selectedOptions[optionGroup.id] === option.value
+                              ? 'border-teal-500 bg-teal-50 text-teal-900'
+                              : 'border-gray-200 hover:border-teal-300'
+                          }`}
+                        >
+                          <div className="text-sm">{option.label}</div>
+                          {option.price > 0 && (
+                            <div className="text-xs text-teal-600 mt-1">+₺{option.price.toFixed(2)}</div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                {/* 🆕 YENİ: Çıkarılabilir Malzemeler */}
+                {selectedProduct.customizations?.removable?.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="font-bold text-teal-900">
+                      Çıkarılabilir Malzemeler
+                    </h3>
+                    <div className="space-y-2">
+                      {selectedProduct.customizations.removable.map((ing) => (
+                        <label
+                          key={ing._id}
+                          className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-teal-300 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={customizations.removed.includes(ing._id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setCustomizations({
+                                  ...customizations,
+                                  removed: [...customizations.removed, ing._id]
+                                })
+                              } else {
+                                setCustomizations({
+                                  ...customizations,
+                                  removed: customizations.removed.filter(id => id !== ing._id)
+                                })
+                              }
+                            }}
+                            className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
+                          />
+                          <span className="text-sm">{ing.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                 )}
 
-                <div className="flex items-center justify-between mb-6">
-                  <span className="text-3xl font-black text-teal-700">
-                    ₺{selectedProduct.price?.toFixed(2)}
-                  </span>
-                  
-                  <div className="flex items-center gap-3 bg-teal-100 rounded-full p-1">
-                    <button
-                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                      className="bg-white p-2 rounded-full hover:bg-teal-50 transition-colors"
-                    >
-                      <Minus className="w-5 h-5 text-teal-700" />
-                    </button>
-                    <span className="text-xl font-bold text-teal-900 w-8 text-center">
-                      {quantity}
-                    </span>
-                    <button
-                      onClick={() => setQuantity(quantity + 1)}
-                      className="bg-white p-2 rounded-full hover:bg-teal-50 transition-colors"
-                    >
-                      <Plus className="w-5 h-5 text-teal-700" />
-                    </button>
+                {/* 🆕 YENİ: Ekstra Malzemeler */}
+                {selectedProduct.customizations?.extras?.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="font-bold text-teal-900">
+                      Ekstra Malzemeler
+                    </h3>
+                    <div className="space-y-2">
+                      {selectedProduct.customizations.extras.map((extra) => (
+                        <label
+                          key={extra.ingredientId}
+                          className="flex items-center justify-between gap-3 p-3 rounded-lg border border-gray-200 hover:border-teal-300 cursor-pointer"
+                        >
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={customizations.extras.some(e => e.ingredientId === extra.ingredientId)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setCustomizations({
+                                    ...customizations,
+                                    extras: [...customizations.extras, extra]
+                                  })
+                                } else {
+                                  setCustomizations({
+                                    ...customizations,
+                                    extras: customizations.extras.filter(e => e.ingredientId !== extra.ingredientId)
+                                  })
+                                }
+                              }}
+                              className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
+                            />
+                            <span className="text-sm">{extra.name}</span>
+                          </div>
+                          <span className="text-sm font-semibold text-teal-700">
+                            +₺{extra.price?.toFixed(2)}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 🆕 YENİ: Not Ekleme */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-teal-600" />
+                    <h3 className="font-bold text-teal-900">
+                      Notunuz (Opsiyonel)
+                    </h3>
+                  </div>
+                  <textarea
+                    value={customerNotes}
+                    onChange={(e) => setCustomerNotes(e.target.value)}
+                    placeholder="Özel bir isteğiniz varsa buraya yazabilirsiniz..."
+                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-teal-500 focus:ring-2 focus:ring-teal-200 transition-all resize-none"
+                    rows={3}
+                    maxLength={200}
+                  />
+                  <div className="text-xs text-gray-500 text-right">
+                    {customerNotes.length}/200
                   </div>
                 </div>
 
-                <button
-                  onClick={handleAddToCart}
-                  className="w-full bg-gradient-to-r from-teal-500 to-cyan-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-3"
-                >
-                  <Check className="w-6 h-6" />
-                  Onayla - ₺{(selectedProduct.price * quantity).toFixed(2)}
-                </button>
+                {/* 🆕 GÜNCELLENMIŞ: Miktar + Fiyat + Sepete Ekle */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm text-gray-600">Toplam Fiyat</div>
+                      <div className="text-3xl font-black text-teal-700">
+                        ₺{(calculateItemPrice() * quantity).toFixed(2)}
+                      </div>
+                      {calculateItemPrice() > selectedProduct.price && (
+                        <div className="text-xs text-gray-500">
+                          Baz fiyat: ₺{selectedProduct.price.toFixed(2)}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center gap-3 bg-teal-100 rounded-full p-1">
+                      <button
+                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                        className="bg-white p-2 rounded-full hover:bg-teal-50 transition-colors"
+                      >
+                        <Minus className="w-5 h-5 text-teal-700" />
+                      </button>
+                      <span className="text-xl font-bold text-teal-900 w-8 text-center">
+                        {quantity}
+                      </span>
+                      <button
+                        onClick={() => setQuantity(quantity + 1)}
+                        className="bg-white p-2 rounded-full hover:bg-teal-50 transition-colors"
+                      >
+                        <Plus className="w-5 h-5 text-teal-700" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {!canAddToCart() && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2">
+                      <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                      <p className="text-sm text-red-700">
+                        Lütfen tüm zorunlu seçimleri yapın
+                      </p>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleAddToCart}
+                    disabled={!canAddToCart()}
+                    className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all duration-300 flex items-center justify-center gap-3 ${
+                      canAddToCart()
+                        ? 'bg-gradient-to-r from-teal-500 to-cyan-600 text-white hover:shadow-xl'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    <Check className="w-6 h-6" />
+                    Sepete Ekle
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
+      {/* 🆕 GÜNCELLENMIŞ: Cart Modal */}
       <AnimatePresence>
         {showCartModal && (
           <motion.div
@@ -727,55 +1055,90 @@ export default function SubcategoriesPage({ params }) {
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: 20 }}
-                        className="bg-teal-50 rounded-xl p-4 flex items-center gap-4"
+                        className="bg-teal-50 rounded-xl p-4"
                       >
-                        <div className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-teal-100 to-cyan-100">
-                          {item.image ? (
-                            <Image
-                              src={item.image}
-                              alt={item.name}
-                              fill
-                              sizes="80px"
-                              className="object-cover"
-                            />
-                          ) : (
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <Coffee className="w-8 h-8 text-teal-300" />
+                        <div className="flex items-start gap-4">
+                          <div className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-teal-100 to-cyan-100">
+                            {item.image ? (
+                              <Image
+                                src={item.image}
+                                alt={item.name}
+                                fill
+                                sizes="80px"
+                                className="object-cover"
+                              />
+                            ) : (
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <Coffee className="w-8 h-8 text-teal-300" />
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-bold text-teal-900 mb-1">{item.name}</h4>
+                            
+                            {/* Seçimleri göster */}
+                            {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
+                              <div className="text-xs text-teal-700 mb-1 flex flex-wrap gap-1">
+                                {Object.entries(item.selectedOptions).map(([key, value]) => (
+                                  <span key={key} className="inline-block bg-teal-100 px-2 py-0.5 rounded-full">
+                                    {value}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            
+                            {/* Özelleştirmeleri göster */}
+                            {(item.customizations?.removed?.length > 0 || item.customizations?.extras?.length > 0) && (
+                              <div className="text-xs text-teal-600 mb-1">
+                                {item.customizations.removed?.length > 0 && (
+                                  <div>❌ Çıkarılan: {item.customizations.removed.length} malzeme</div>
+                                )}
+                                {item.customizations.extras?.length > 0 && (
+                                  <div>➕ Ekstra: {item.customizations.extras.length} malzeme</div>
+                                )}
+                              </div>
+                            )}
+                            
+                            {/* Notu göster */}
+                            {item.notes && (
+                              <div className="text-xs text-teal-600 italic bg-teal-100 p-2 rounded mt-1">
+                                💬 "{item.notes}"
+                              </div>
+                            )}
+                            
+                            <p className="text-teal-700 font-semibold mt-2">
+                              ₺{item.price.toFixed(2)} × {item.quantity} = ₺{(item.price * item.quantity).toFixed(2)}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-col items-end gap-2">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => updateCartItemQuantity(item, item.quantity - 1)}
+                                className="bg-white p-2 rounded-lg hover:bg-teal-100 transition-colors"
+                              >
+                                <Minus className="w-4 h-4 text-teal-700" />
+                              </button>
+                              <span className="font-bold text-teal-900 w-8 text-center">
+                                {item.quantity}
+                              </span>
+                              <button
+                                onClick={() => updateCartItemQuantity(item, item.quantity + 1)}
+                                className="bg-white p-2 rounded-lg hover:bg-teal-100 transition-colors"
+                              >
+                                <Plus className="w-4 h-4 text-teal-700" />
+                              </button>
                             </div>
-                          )}
-                        </div>
 
-                        <div className="flex-1">
-                          <h4 className="font-bold text-teal-900 mb-1">{item.name}</h4>
-                          <p className="text-teal-700 font-semibold">
-                            ₺{item.price.toFixed(2)} × {item.quantity} = ₺{(item.price * item.quantity).toFixed(2)}
-                          </p>
+                            <button
+                              onClick={() => removeFromCart(item)}
+                              className="bg-red-100 text-red-600 p-2 rounded-lg hover:bg-red-200 transition-colors"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          </div>
                         </div>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => updateCartItemQuantity(item.id, item.quantity - 1)}
-                            className="bg-white p-2 rounded-lg hover:bg-teal-100 transition-colors"
-                          >
-                            <Minus className="w-4 h-4 text-teal-700" />
-                          </button>
-                          <span className="font-bold text-teal-900 w-8 text-center">
-                            {item.quantity}
-                          </span>
-                          <button
-                            onClick={() => updateCartItemQuantity(item.id, item.quantity + 1)}
-                            className="bg-white p-2 rounded-lg hover:bg-teal-100 transition-colors"
-                          >
-                            <Plus className="w-4 h-4 text-teal-700" />
-                          </button>
-                        </div>
-
-                        <button
-                          onClick={() => removeFromCart(item.id)}
-                          className="bg-red-100 text-red-600 p-2 rounded-lg hover:bg-red-200 transition-colors"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
                       </motion.div>
                     ))}
                   </div>
@@ -789,6 +1152,15 @@ export default function SubcategoriesPage({ params }) {
                     <span>₺{getCartTotal().toFixed(2)}</span>
                   </div>
 
+                  {!session && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-center gap-2">
+                      <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0" />
+                      <p className="text-sm text-yellow-700">
+                        Sipariş vermek için lütfen bekleyin...
+                      </p>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       onClick={clearCart}
@@ -799,7 +1171,12 @@ export default function SubcategoriesPage({ params }) {
                     </button>
                     <button
                       onClick={handleSubmitOrder}
-                      className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2"
+                      disabled={!session}
+                      className={`py-3 rounded-xl font-bold shadow-lg transition-all duration-300 flex items-center justify-center gap-2 ${
+                        session
+                          ? 'bg-gradient-to-r from-teal-500 to-cyan-600 text-white hover:shadow-xl'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
                     >
                       <Send className="w-5 h-5" />
                       Sipariş Ver

@@ -17,6 +17,7 @@ import {
   LogOut,
   X,
   Settings,
+   Wifi ,
   Bell,
   UserCog  // 🆕 Users ikonu
 } from 'lucide-react'
@@ -28,6 +29,7 @@ const menuItems = [
   { href: '/admin/menu', icon: MenuIcon, label: 'Menü' },
   { href: '/admin/tables', icon: Users, label: 'Masalar' },
   { href: '/admin/orders', icon: ShoppingCart, label: 'Siparişler' },
+    { href: '/admin/sessions', icon: Wifi, label: 'Oturumlar' }, // ← BUNU EKLE
   { href: '/admin/qr', icon: QrCode, label: 'QR Kodlar' },
   { href: '/admin/users', icon: UserCog, label: 'Kullanıcılar' }, // 🆕 EKLEND İ
 ]
