@@ -161,6 +161,7 @@ export const createOrder = (data) => {
         removed: item.customizations?.removed || [],
         extras: item.customizations?.extras || []
       },
+      selectedOptions: item.selectedOptions || [],  // 🆕 ZORUNLU SEÇİMLER EKLENDİ!
       notes: item.notes?.trim() || '',
       subtotal: parseFloat(item.price) * parseInt(item.quantity)
     })),

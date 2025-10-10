@@ -215,36 +215,58 @@ export default function SubcategoryProductsPage({ params }) {
     return basePrice
   }
 
-  const handleAddToCart = () => {
-    if (!canAddToCart()) {
-      toast.error('Lütfen zorunlu seçimleri yapın!', {
-        icon: '⚠️'
-      })
-      return
-    }
-    
-    const itemPrice = calculateItemPrice()
-    
-    const cartItem = {
-      id: `${selectedProduct.id}-${Date.now()}`,
-      menuItemId: selectedProduct.id,
-      name: selectedProduct.name,
-      basePrice: selectedProduct.price,
-      price: itemPrice,
-      image: selectedProduct.image,
-      quantity: quantity,
-      selectedOptions: selectedOptions,
-      customizations: customizations,
-      notes: customerNotes
-    }
-    
-    setCart([...cart, cartItem])
-    toast.success(`${selectedProduct.name} sepete eklendi!`, {
-      icon: '✅'
+
+const handleAddToCart = () => {
+  if (!canAddToCart()) {
+    toast.error('Lütfen zorunlu seçimleri yapın!', {
+      icon: '⚠️'
     })
-    
-    closeProductModal()
+    return
   }
+  
+  const itemPrice = calculateItemPrice()
+  
+  // 🆕 DÜZELTME: Zorunlu seçimleri detaylı formatta hazırla
+  const formattedSelectedOptions = []
+  if (selectedProduct?.requiredOptions) {
+    selectedProduct.requiredOptions.forEach(optGroup => {
+      const selectedValue = selectedOptions[optGroup.id]
+      if (selectedValue) {
+        const option = optGroup.options.find(opt => opt.value === selectedValue)
+        if (option) {
+          formattedSelectedOptions.push({
+            groupId: optGroup.id,
+            groupLabel: optGroup.label,
+            selectedValue: option.value,
+            selectedLabel: option.label,
+            price: option.price || 0
+          })
+        }
+      }
+    })
+  }
+  
+  const cartItem = {
+    id: `${selectedProduct.id}-${Date.now()}`,
+    menuItemId: selectedProduct.id,
+    name: selectedProduct.name,
+    basePrice: selectedProduct.price,
+    price: itemPrice,
+    image: selectedProduct.image,
+    quantity: quantity,
+    // 🆕 DÜZELTME: Detaylı format
+    selectedOptions: formattedSelectedOptions,
+    customizations: customizations,
+    notes: customerNotes
+  }
+  
+  setCart([...cart, cartItem])
+  toast.success(`${selectedProduct.name} sepete eklendi!`, {
+    icon: '✅'
+  })
+  
+  closeProductModal()
+}
 
   const updateCartItemQuantity = (item, newQuantity) => {
     if (newQuantity <= 0) {
@@ -364,14 +386,14 @@ export default function SubcategoryProductsPage({ params }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-rose-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-teal-50 via-cyan-50 to-emerald-100 flex items-center justify-center">
         <div className="text-center">
           <motion.div
             animate={{ rotate: 360 }}
             transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
             className="w-20 h-20 border-4 border-purple-300 border-t-purple-600 rounded-full mx-auto mb-6"
           />
-          <motion.p className="text-purple-700 text-lg font-medium">
+          <motion.p className="text-teal-700 text-lg font-medium">
             {sessionLoading ? 'Bağlantı kuruluyor...' : 'Yükleniyor...'}
           </motion.p>
         </div>
@@ -380,19 +402,19 @@ export default function SubcategoryProductsPage({ params }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-rose-100">
+<div className="min-h-screen bg-gradient-to-br from-teal-50 via-cyan-50 to-emerald-100 relative overflow-hidden">
       {/* Header */}
       <motion.div 
         initial={{ y: -100 }}
         animate={{ y: 0 }}
-        className="sticky top-0 z-20 backdrop-blur-xl bg-white/90 border-b border-purple-200 shadow-lg"
+        className="sticky top-0 z-20 backdrop-blur-xl bg-white/90 border-b border-teal-200 shadow-lg"
       >
         <div className="flex items-center justify-between p-4 max-w-7xl mx-auto">
           <motion.button
             whileHover={{ scale: 1.1, x: -5 }}
             whileTap={{ scale: 0.9 }}
             onClick={handleBackClick}
-            className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 rounded-xl shadow-lg transition-all duration-300"
+            className="p-3 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 rounded-xl shadow-lg transition-all duration-300"
           >
             <ArrowLeft className="w-6 h-6 text-white" />
           </motion.button>
@@ -401,14 +423,14 @@ export default function SubcategoryProductsPage({ params }) {
             <motion.h1 
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
-              className="text-xl font-black text-purple-800"
+              className="text-xl font-black text-teal-800"
             >
               {currentSubcategory?.name}
             </motion.h1>
             <motion.p 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="text-purple-600 text-sm font-semibold mt-1"
+              className="text-teal-600 text-sm font-semibold mt-1"
             >
               Masa {tableId}
             </motion.p>
@@ -424,7 +446,7 @@ export default function SubcategoryProductsPage({ params }) {
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={openCartModal}
-            className="relative p-3 bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 rounded-xl shadow-lg transition-all duration-300"
+            className="relative p-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 rounded-xl shadow-lg transition-all duration-300"
           >
             <ShoppingCart className="w-6 h-6 text-white" />
             {cart.length > 0 && (
@@ -447,19 +469,19 @@ export default function SubcategoryProductsPage({ params }) {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <h2 className="text-2xl md:text-3xl font-black text-purple-800 mb-3 text-center">
+          <h2 className="text-2xl md:text-3xl font-black text-teal-800 mb-3 text-center">
             {parentCategory?.name} - {currentSubcategory?.name}
           </h2>
-          <p className="text-purple-600 text-center mb-8">
+          <p className="text-teal-600 text-center mb-8">
             {products.length} ürün bulundu
           </p>
 
           {products.length === 0 ? (
             <div className="text-center py-20">
-              <div className="inline-block p-8 bg-white rounded-3xl border border-purple-200 shadow-xl">
-                <Coffee className="w-20 h-20 text-purple-300 mx-auto mb-6" />
-                <h3 className="text-2xl font-bold text-purple-800 mb-3">Ürün Bulunamadı</h3>
-                <p className="text-purple-600 text-lg">Bu kategoride henüz ürün eklenmemiş</p>
+              <div className="inline-block p-8 bg-white rounded-3xl border border-teal-200 shadow-xl">
+                <Coffee className="w-20 h-20 text-teal-300 mx-auto mb-6" />
+                <h3 className="text-2xl font-bold text-teal-800 mb-3">Ürün Bulunamadı</h3>
+                <p className="text-teal-600 text-lg">Bu kategoride henüz ürün eklenmemiş</p>
               </div>
             </div>
           ) : (
@@ -475,7 +497,7 @@ export default function SubcategoryProductsPage({ params }) {
                   className="group cursor-pointer"
                 >
                   <div className="bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300">
-                    <div className="relative aspect-[4/3] w-full bg-gradient-to-br from-purple-100 to-pink-100 overflow-hidden">
+                    <div className="relative aspect-[4/3] w-full bg-gradient-to-br from-teal-100 to-cyan-100 overflow-hidden">
                       {product.image ? (
                         <Image
                           src={product.image}
@@ -487,12 +509,12 @@ export default function SubcategoryProductsPage({ params }) {
                         />
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <Coffee className="w-16 h-16 text-purple-300" />
+                          <Coffee className="w-16 h-16 text-teal-300" />
                         </div>
                       )}
                       
                       <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                        <div className="bg-purple-500 text-white p-2 rounded-full shadow-xl">
+                        <div className="bg-teal-500 text-white p-2 rounded-full shadow-xl">
                           <Plus className="w-5 h-5" />
                         </div>
                       </div>
@@ -513,11 +535,11 @@ export default function SubcategoryProductsPage({ params }) {
                     </div>
 
                     <div className="p-4">
-                      <h3 className="font-bold text-purple-900 text-lg leading-tight mb-2 line-clamp-2 group-hover:text-purple-700 transition-colors">
+                      <h3 className="font-bold text-teal-900 text-lg leading-tight mb-2 line-clamp-2 group-hover:text-teal-700 transition-colors">
                         {product.name}
                       </h3>
                       {product.description && (
-                        <p className="text-purple-600 text-sm line-clamp-2 mb-3">
+                        <p className="text-teal-600 text-sm line-clamp-2 mb-3">
                           {product.description}
                         </p>
                       )}
@@ -547,13 +569,13 @@ export default function SubcategoryProductsPage({ params }) {
                       </div>
 
                       <div className="flex items-center justify-between">
-                        <span className="text-2xl font-black text-purple-700">
+                        <span className="text-2xl font-black text-teal-700">
                           ₺{product.price?.toFixed(2)}
                         </span>
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
-                          className="bg-gradient-to-r from-purple-500 to-pink-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
+                          className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
                         >
                           <Plus className="w-4 h-4" />
                           Ekle
@@ -597,8 +619,8 @@ export default function SubcategoryProductsPage({ params }) {
                     priority={true}
                   />
                 ) : (
-                  <div className="absolute inset-0 bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center">
-                    <Coffee className="w-20 h-20 text-purple-300" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-teal-100 to-cyan-100 flex items-center justify-center">
+                    <Coffee className="w-20 h-20 text-teal-300" />
                   </div>
                 )}
                 
@@ -606,7 +628,7 @@ export default function SubcategoryProductsPage({ params }) {
                   onClick={closeProductModal}
                   className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm p-2 rounded-full shadow-lg hover:bg-white transition-colors"
                 >
-                  <X className="w-6 h-6 text-purple-700" />
+                  <X className="w-6 h-6 text-teal-700" />
                 </button>
 
                 {selectedProduct.spicyLevel > 0 && (
@@ -643,11 +665,11 @@ export default function SubcategoryProductsPage({ params }) {
                 </div>
 
                 <div>
-                  <h2 className="text-3xl font-black text-purple-900 mb-2">
+                  <h2 className="text-3xl font-black text-teal-900 mb-2">
                     {selectedProduct.name}
                   </h2>
                   {selectedProduct.description && (
-                    <p className="text-purple-600 mb-4">
+                    <p className="text-teal-600 mb-4">
                       {selectedProduct.description}
                     </p>
                   )}
@@ -657,7 +679,7 @@ export default function SubcategoryProductsPage({ params }) {
                 {selectedProduct.requiredOptions?.map((optionGroup) => (
                   <div key={optionGroup.id} className="space-y-3">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-purple-900">
+                      <h3 className="font-bold text-teal-900">
                         {optionGroup.label}
                       </h3>
                       {optionGroup.required && (
@@ -673,15 +695,16 @@ export default function SubcategoryProductsPage({ params }) {
                             ...selectedOptions,
                             [optionGroup.id]: option.value
                           })}
-                          className={`p-3 rounded-lg border-2 font-medium transition-all ${
-                            selectedOptions[optionGroup.id] === option.value
-                              ? 'border-purple-500 bg-purple-50 text-purple-900'
-                              : 'border-gray-200 hover:border-purple-300'
-                          }`}
+className={`p-3 rounded-lg border-2 font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-300 ${
+  selectedOptions[optionGroup.id] === option.value
+    ? 'border-teal-500 bg-teal-50 text-teal-900 shadow-sm'
+    : 'border-teal-200 text-teal-700 bg-white hover:bg-teal-50 hover:border-teal-400 shadow-sm'
+}`}
+
                         >
                           <div className="text-sm">{option.label}</div>
                           {option.price > 0 && (
-                            <div className="text-xs text-purple-600 mt-1">+₺{option.price.toFixed(2)}</div>
+                            <div className="text-xs text-teal-600 mt-1">+₺{option.price.toFixed(2)}</div>
                           )}
                         </button>
                       ))}
@@ -692,7 +715,7 @@ export default function SubcategoryProductsPage({ params }) {
                 {/* 🆕 Çıkarılabilir Malzemeler */}
                 {selectedProduct.customizations?.removable?.length > 0 && (
                   <div className="space-y-3">
-                    <h3 className="font-bold text-purple-900">
+                    <h3 className="font-bold text-teal-900">
                       Çıkarılabilir Malzemeler
                     </h3>
                     <div className="space-y-2">
@@ -717,7 +740,7 @@ export default function SubcategoryProductsPage({ params }) {
                                 })
                               }
                             }}
-                            className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                            className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
                           />
                           <span className="text-sm">{ing.name}</span>
                         </label>
@@ -729,7 +752,7 @@ export default function SubcategoryProductsPage({ params }) {
                 {/* 🆕 Ekstra Malzemeler */}
                 {selectedProduct.customizations?.extras?.length > 0 && (
                   <div className="space-y-3">
-                    <h3 className="font-bold text-purple-900">
+                    <h3 className="font-bold text-teal-900">
                       Ekstra Malzemeler
                     </h3>
                     <div className="space-y-2">
@@ -755,11 +778,11 @@ export default function SubcategoryProductsPage({ params }) {
                                   })
                                 }
                               }}
-                              className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                              className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
                             />
                             <span className="text-sm">{extra.name}</span>
                           </div>
-                          <span className="text-sm font-semibold text-purple-700">
+                          <span className="text-sm font-semibold text-teal-700">
                             +₺{extra.price?.toFixed(2)}
                           </span>
                         </label>
@@ -771,8 +794,8 @@ export default function SubcategoryProductsPage({ params }) {
                 {/* 🆕 Not Ekleme */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <MessageSquare className="w-5 h-5 text-purple-600" />
-                    <h3 className="font-bold text-purple-900">
+                    <MessageSquare className="w-5 h-5 text-teal-600" />
+                    <h3 className="font-bold text-teal-900">
                       Notunuz (Opsiyonel)
                     </h3>
                   </div>
@@ -780,7 +803,7 @@ export default function SubcategoryProductsPage({ params }) {
                     value={customerNotes}
                     onChange={(e) => setCustomerNotes(e.target.value)}
                     placeholder="Özel bir isteğiniz varsa buraya yazabilirsiniz..."
-                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all resize-none"
+                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-teal-500 focus:ring-2 focus:ring-teal-200 transition-all resize-none"
                     rows={3}
                     maxLength={200}
                   />
@@ -794,7 +817,7 @@ export default function SubcategoryProductsPage({ params }) {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-sm text-gray-600">Toplam Fiyat</div>
-                      <div className="text-3xl font-black text-purple-700">
+                      <div className="text-3xl font-black text-teal-700">
                         ₺{(calculateItemPrice() * quantity).toFixed(2)}
                       </div>
                       {calculateItemPrice() > selectedProduct.price && (
@@ -804,21 +827,21 @@ export default function SubcategoryProductsPage({ params }) {
                       )}
                     </div>
                     
-                    <div className="flex items-center gap-3 bg-purple-100 rounded-full p-1">
+                    <div className="flex items-center gap-3 bg-teal-100 rounded-full p-1">
                       <button
                         onClick={() => setQuantity(Math.max(1, quantity - 1))}
                         className="bg-white p-2 rounded-full hover:bg-purple-50 transition-colors"
                       >
-                        <Minus className="w-5 h-5 text-purple-700" />
+                        <Minus className="w-5 h-5 text-teal-700" />
                       </button>
-                      <span className="text-xl font-bold text-purple-900 w-8 text-center">
+                      <span className="text-xl font-bold text-teal-900 w-8 text-center">
                         {quantity}
                       </span>
                       <button
                         onClick={() => setQuantity(quantity + 1)}
                         className="bg-white p-2 rounded-full hover:bg-purple-50 transition-colors"
                       >
-                        <Plus className="w-5 h-5 text-purple-700" />
+                        <Plus className="w-5 h-5 text-teal-700" />
                       </button>
                     </div>
                   </div>
@@ -837,7 +860,7 @@ export default function SubcategoryProductsPage({ params }) {
                     disabled={!canAddToCart()}
                     className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all duration-300 flex items-center justify-center gap-3 ${
                       canAddToCart()
-                        ? 'bg-gradient-to-r from-purple-500 to-pink-600 text-white hover:shadow-xl'
+                        ? 'bg-gradient-to-r from-teal-500 to-cyan-600 text-white hover:shadow-xl'
                         : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     }`}
                   >
@@ -852,189 +875,218 @@ export default function SubcategoryProductsPage({ params }) {
       </AnimatePresence>
 
       {/* 🆕 Cart Modal */}
-      <AnimatePresence>
-        {showCartModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
-            onClick={closeCartModal}
-          >
-            <motion.div
-              initial={{ y: 300, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 300, opacity: 0 }}
-              transition={{ type: "spring", damping: 25 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+     <AnimatePresence>
+  {showCartModal && (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
+      onClick={closeCartModal}
+    >
+      <motion.div
+        initial={{ y: 300, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 300, opacity: 0 }}
+        transition={{ type: "spring", damping: 25 }}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+      >
+        {/* Header */}
+        <div className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <ShoppingCart className="w-8 h-8" />
+              <div>
+                <h2 className="text-2xl font-black">Sepetim</h2>
+                <p className="text-teal-100 text-sm">Masa {tableId}</p>
+              </div>
+            </div>
+            <button
+              onClick={closeCartModal}
+              className="bg-white/20 backdrop-blur-sm p-2 rounded-full hover:bg-white/30 transition-colors"
             >
-              <div className="bg-gradient-to-r from-purple-500 to-pink-600 text-white p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <ShoppingCart className="w-8 h-8" />
-                    <div>
-                      <h2 className="text-2xl font-black">Sepetim</h2>
-                      <p className="text-purple-100 text-sm">Masa {tableId}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={closeCartModal}
-                    className="bg-white/20 backdrop-blur-sm p-2 rounded-full hover:bg-white/30 transition-colors"
-                  >
-                    <X className="w-6 h-6" />
-                  </button>
-                </div>
-              </div>
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
 
-              <div className="flex-1 overflow-y-auto p-6">
-                {cart.length === 0 ? (
-                  <div className="text-center py-12">
-                    <ShoppingCart className="w-20 h-20 text-purple-200 mx-auto mb-4" />
-                    <h3 className="text-xl font-bold text-purple-800 mb-2">Sepetiniz Boş</h3>
-                    <p className="text-purple-600">Ürün ekleyerek başlayın</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {cart.map((item) => (
-                      <motion.div
-                        key={item.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 20 }}
-                        className="bg-purple-50 rounded-xl p-4"
-                      >
-                        <div className="flex items-start gap-4">
-                          <div className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-purple-100 to-pink-100">
-                            {item.image ? (
-                              <Image
-                                src={item.image}
-                                alt={item.name}
-                                fill
-                                sizes="80px"
-                                className="object-cover"
-                              />
-                            ) : (
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <Coffee className="w-8 h-8 text-purple-300" />
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-bold text-purple-900 mb-1">{item.name}</h4>
-                            
-                            {/* Seçimler */}
-                            {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
-                              <div className="text-xs text-purple-700 mb-1 flex flex-wrap gap-1">
-                                {Object.entries(item.selectedOptions).map(([key, value]) => (
-                                  <span key={key} className="inline-block bg-purple-100 px-2 py-0.5 rounded-full">
-                                    {value}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                            
-                            {/* Özelleştirmeler */}
-                            {(item.customizations?.removed?.length > 0 || item.customizations?.extras?.length > 0) && (
-                              <div className="text-xs text-purple-600 mb-1">
-                                {item.customizations.removed?.length > 0 && (
-                                  <div>❌ Çıkarılan: {item.customizations.removed.length} malzeme</div>
-                                )}
-                                {item.customizations.extras?.length > 0 && (
-                                  <div>➕ Ekstra: {item.customizations.extras.length} malzeme</div>
-                                )}
-                              </div>
-                            )}
-                            
-                            {/* Not */}
-                            {item.notes && (
-                              <div className="text-xs text-purple-600 italic bg-purple-100 p-2 rounded mt-1">
-                                💬 "{item.notes}"
-                              </div>
-                            )}
-                            
-                            <p className="text-purple-700 font-semibold mt-2">
-                              ₺{item.price.toFixed(2)} × {item.quantity} = ₺{(item.price * item.quantity).toFixed(2)}
-                            </p>
-                          </div>
-
-                          <div className="flex flex-col items-end gap-2">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => updateCartItemQuantity(item, item.quantity - 1)}
-                                className="bg-white p-2 rounded-lg hover:bg-purple-100 transition-colors"
-                              >
-                                <Minus className="w-4 h-4 text-purple-700" />
-                              </button>
-                              <span className="font-bold text-purple-900 w-8 text-center">
-                                {item.quantity}
-                              </span>
-                              <button
-                                onClick={() => updateCartItemQuantity(item, item.quantity + 1)}
-                                className="bg-white p-2 rounded-lg hover:bg-purple-100 transition-colors"
-                              >
-                                <Plus className="w-4 h-4 text-purple-700" />
-                              </button>
-                            </div>
-
-                            <button
-                              onClick={() => removeFromCart(item)}
-                              className="bg-red-100 text-red-600 p-2 rounded-lg hover:bg-red-200 transition-colors"
-                            >
-                              <Trash2 className="w-5 h-5" />
-                            </button>
-                          </div>
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {cart.length === 0 ? (
+            <div className="text-center py-12">
+              <ShoppingCart className="w-20 h-20 text-teal-200 mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-teal-800 mb-2">Sepetiniz Boş</h3>
+              <p className="text-teal-600">Ürün ekleyerek başlayın</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {cart.map((item) => (
+                <motion.div
+                  key={item.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  className="bg-teal-50 rounded-xl p-4"
+                >
+                  <div className="flex items-start gap-4">
+                    {/* Image */}
+                    <div className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-teal-100 to-cyan-100">
+                      {item.image ? (
+                        <Image
+                          src={item.image}
+                          alt={item.name}
+                          fill
+                          sizes="80px"
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Coffee className="w-8 h-8 text-teal-300" />
                         </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                      )}
+                    </div>
 
-              {cart.length > 0 && (
-                <div className="border-t border-purple-100 p-6 space-y-4">
-                  <div className="flex items-center justify-between text-2xl font-black text-purple-900">
-                    <span>Toplam:</span>
-                    <span>₺{getCartTotal().toFixed(2)}</span>
-                  </div>
-
-                  {!session && (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-center gap-2">
-                      <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0" />
-                      <p className="text-sm text-yellow-700">
-                        Sipariş vermek için lütfen bekleyin...
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-teal-900 mb-1">{item.name}</h4>
+                      
+                      {/* 🆕 Zorunlu Seçimleri Göster */}
+                      {item.selectedOptions && item.selectedOptions.length > 0 && (
+                        <div className="text-xs mb-2 flex flex-wrap gap-1">
+                          {item.selectedOptions.map((selection, selIdx) => (
+                            <span 
+                              key={selIdx} 
+                              className="inline-flex items-center gap-1 bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full border border-teal-200"
+                            >
+                              <span className="font-bold">{selection.groupLabel}:</span> 
+                              <span>{selection.selectedLabel}</span>
+                              {selection.price > 0 && (
+                                <span className="text-teal-600 font-semibold">+₺{selection.price.toFixed(2)}</span>
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Özelleştirmeleri göster */}
+                      {(item.customizations?.removed?.length > 0 || item.customizations?.extras?.length > 0) && (
+                        <div className="text-xs text-teal-600 mb-2 space-y-1">
+                          {item.customizations.removed?.length > 0 && (
+                            <div className="flex items-start gap-1">
+                              <span className="text-red-600 font-semibold flex-shrink-0">❌ Çıkarılan:</span>
+                              <span className="flex-1">
+                                {item.customizations.removed.map(r => r.name || r).join(', ')}
+                              </span>
+                            </div>
+                          )}
+                          {item.customizations.extras?.length > 0 && (
+                            <div className="flex items-start gap-1">
+                              <span className="text-green-600 font-semibold flex-shrink-0">➕ Ekstra:</span>
+                              <span className="flex-1">
+                                {item.customizations.extras.map(e => `${e.name || e}${e.price ? ` (+₺${e.price.toFixed(2)})` : ''}`).join(', ')}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Notu göster */}
+                      {item.notes && (
+                        <div className="text-xs text-teal-600 italic bg-teal-100 p-2 rounded mt-2 border border-teal-200">
+                          <span className="font-semibold">💬 Not:</span> "{item.notes}"
+                        </div>
+                      )}
+                      
+                      {/* Price */}
+                      <p className="text-teal-700 font-semibold mt-2">
+                        ₺{item.price.toFixed(2)} × {item.quantity} = ₺{(item.price * item.quantity).toFixed(2)}
                       </p>
                     </div>
-                  )}
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={clearCart}
-                      className="bg-red-100 text-red-700 py-3 rounded-xl font-bold hover:bg-red-200 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                      Temizle
-                    </button>
-                    <button
-                      onClick={handleSubmitOrder}
-                      disabled={!session}
-                      className={`py-3 rounded-xl font-bold shadow-lg transition-all duration-300 flex items-center justify-center gap-2 ${
-                        session
-                          ? 'bg-gradient-to-r from-purple-500 to-pink-600 text-white hover:shadow-xl'
-                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      }`}
-                    >
-                      <Send className="w-5 h-5" />
-                      Sipariş Ver
-                    </button>
+                    {/* Actions */}
+                    <div className="flex flex-col items-end gap-2">
+                      {/* Quantity Controls */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => updateCartItemQuantity(item, item.quantity - 1)}
+                          className="bg-white p-2 rounded-lg hover:bg-teal-100 transition-colors"
+                        >
+                          <Minus className="w-4 h-4 text-teal-700" />
+                        </button>
+                        <span className="font-bold text-teal-900 w-8 text-center">
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() => updateCartItemQuantity(item, item.quantity + 1)}
+                          className="bg-white p-2 rounded-lg hover:bg-teal-100 transition-colors"
+                        >
+                          <Plus className="w-4 h-4 text-teal-700" />
+                        </button>
+                      </div>
+
+                      {/* Delete Button */}
+                      <button
+                        onClick={() => removeFromCart(item)}
+                        className="bg-red-100 text-red-600 p-2 rounded-lg hover:bg-red-200 transition-colors"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
-            </motion.div>
-          </motion.div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        {cart.length > 0 && (
+          <div className="border-t border-teal-100 p-6 space-y-4">
+            {/* Total */}
+            <div className="flex items-center justify-between text-2xl font-black text-teal-900">
+              <span>Toplam:</span>
+              <span>₺{getCartTotal().toFixed(2)}</span>
+            </div>
+
+            {/* Session Warning */}
+            {!session && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0" />
+                <p className="text-sm text-yellow-700">
+                  Sipariş vermek için lütfen bekleyin...
+                </p>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={clearCart}
+                className="bg-red-100 text-red-700 py-3 rounded-xl font-bold hover:bg-red-200 transition-colors flex items-center justify-center gap-2"
+              >
+                <Trash2 className="w-5 h-5" />
+                Temizle
+              </button>
+              <button
+                onClick={handleSubmitOrder}
+                disabled={!session}
+                className={`py-3 rounded-xl font-bold shadow-lg transition-all duration-300 flex items-center justify-center gap-2 ${
+                  session
+                    ? 'bg-gradient-to-r from-teal-500 to-cyan-600 text-white hover:shadow-xl'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                <Send className="w-5 h-5" />
+                Sipariş Ver
+              </button>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
 
       <MenuFooter />
     </div>

@@ -787,6 +787,76 @@ export async function PUT(request) {
           updatedAt: new Date()
         }
         break
+
+case 'updateItemStatus':
+  // 🆕 HER ÜRÜN İÇİN AYRI DURUM GÜNCELLEMESİ
+  const { itemIndex, itemStatus } = updateData
+  
+  // Validasyon
+  if (itemIndex === undefined || !itemStatus) {
+    return NextResponse.json(
+      { success: false, error: 'Item index ve status gerekli' },
+      { status: 400 }
+    )
+  }
+  
+  if (!Object.values(ORDER_STATUSES).includes(itemStatus)) {
+    return NextResponse.json(
+      { success: false, error: 'Geçersiz item status' },
+      { status: 400 }
+    )
+  }
+  
+  console.log(`📦 Updating item ${itemIndex} to status: ${itemStatus}`) // Debug
+  
+  // Ürünün durumunu güncelle
+  updateFields = {
+    [`items.${itemIndex}.status`]: itemStatus,
+    [`items.${itemIndex}.updatedAt`]: new Date(),
+    updatedAt: new Date()
+  }
+  
+  // 🔥 AKILLI DURUM GÜNCELLEMESİ
+  // Tüm itemlar aynı durumda mı kontrol et
+  const currentOrder = await db.collection('orders').findOne({ _id: new ObjectId(id) })
+  
+  if (currentOrder && currentOrder.items) {
+    // Güncelleme sonrası tüm item durumlarını hesapla
+    const allItemStatuses = currentOrder.items.map((item, idx) => 
+      idx === itemIndex ? itemStatus : (item.status || 'pending')
+    )
+    
+    console.log('📊 All item statuses after update:', allItemStatuses) // Debug
+    
+    // Tüm itemlar aynı durumdaysa, order status'ü de güncelle
+    const allSame = allItemStatuses.every(s => s === itemStatus)
+    
+    if (allSame) {
+      console.log(`✅ All items are ${itemStatus}, updating order status`) // Debug
+      updateFields.status = itemStatus
+      updateFields[`timestamps.${itemStatus}`] = new Date()
+    } else {
+      // Farklı durumlardaysa, en ileri durum ne ise o olsun
+      const statusPriority = {
+        'pending': 1,
+        'confirmed': 2,
+        'preparing': 3,
+        'ready': 4,
+        'delivered': 5,
+        'completed': 6
+      }
+      
+      const maxStatus = allItemStatuses.reduce((max, current) => {
+        return (statusPriority[current] || 0) > (statusPriority[max] || 0) ? current : max
+      }, 'pending')
+      
+      console.log(`⚡ Mixed statuses, setting order to: ${maxStatus}`) // Debug
+      updateFields.status = maxStatus
+      updateFields[`timestamps.${maxStatus}`] = new Date()
+    }
+  }
+  
+  break
         
       default:
         // Full update

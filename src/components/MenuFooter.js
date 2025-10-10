@@ -67,7 +67,6 @@ export default function MenuFooter() {
             </div>
             <div className="text-emerald-800">
               <p className="font-bold text-lg">MEVA CAFE</p>
-              <p className="text-xs text-emerald-600">© 2025 Tüm hakları saklıdır</p>
             </div>
           </div>
 
@@ -98,11 +97,19 @@ export default function MenuFooter() {
           transition={{ delay: 0.5 }}
           className="text-center mt-8"
         >
-          <p className="text-emerald-600 text-sm font-medium flex items-center justify-center gap-2">
-            <Coffee className="w-4 h-4" />
-            Sevgiyle Hazırlandı
-            <Heart className="w-4 h-4 fill-current" />
-          </p>
+         <p className="text-xs text-gray-600 flex items-center justify-center gap-2 mt-4">
+  <span>© 2025 Tüm Hakları Saklıdır</span>
+  <span className="text-gray-400">•</span>
+  <a 
+    href="https://ardacaliskan.com"
+    target="_blank"
+    rel="noopener noreferrer"
+    className="text-gray-700 hover:text-gray-900 font-medium transition-colors"
+  >
+    Arda Çalışkan
+  </a>
+</p>
+
         </motion.div>
       </div>
     </footer>

@@ -17,6 +17,8 @@ import {
   Coffee
 } from 'lucide-react'
 import toast, { Toaster } from 'react-hot-toast'
+import Link from 'next/link'
+
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({ username: '', password: '' })
@@ -309,52 +311,9 @@ export default function LoginPage() {
                 </div>
                 <div className="relative flex justify-center text-sm">
                   <span className="px-4 bg-white text-gray-500 font-medium">
-                    Demo Hesapları
                   </span>
                 </div>
               </div>
-
-              {/* Quick Login Buttons */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.7 }}
-                className="grid grid-cols-1 sm:grid-cols-2 gap-3"
-              >
-                <button
-                  type="button"
-                  onClick={() => quickLogin('admin', 'admin123')}
-                  className="flex items-center justify-between p-4 bg-purple-50 hover:bg-purple-100 border-2 border-purple-200 rounded-xl transition-all group"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
-                      <Shield className="w-5 h-5 text-white" />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-sm font-semibold text-gray-900">Admin</p>
-                      <p className="text-xs text-gray-600">Yönetici</p>
-                    </div>
-                  </div>
-                  <ArrowRight className="w-4 h-4 text-purple-600 group-hover:translate-x-1 transition-transform" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => quickLogin('ahmet_y', 'garson123')}
-                  className="flex items-center justify-between p-4 bg-blue-50 hover:bg-blue-100 border-2 border-blue-200 rounded-xl transition-all group"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                      <User className="w-5 h-5 text-white" />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-sm font-semibold text-gray-900">Garson</p>
-                      <p className="text-xs text-gray-600">Ahmet Y.</p>
-                    </div>
-                  </div>
-                  <ArrowRight className="w-4 h-4 text-blue-600 group-hover:translate-x-1 transition-transform" />
-                </button>
-              </motion.div>
 
               {/* Footer Info */}
               <motion.div
@@ -364,8 +323,17 @@ export default function LoginPage() {
                 className="mt-8 text-center"
               >
                 <p className="text-xs text-gray-500">
-                  Restaurant QR Menu System v2.0
-                </p>
+  <a 
+    href="https://ardacaliskan.com" 
+    target="_blank" 
+    rel="noopener noreferrer"
+    className="text-gray-700 hover:text-gray-900 font-semibold transition-colors"
+  >
+    Arda Çalışkan
+  </a> 
+  &nbsp;QR Menu System v2.0
+</p>
+
                 <p className="text-xs text-gray-400 mt-1">
                   © 2025 Tüm hakları saklıdır
                 </p>
